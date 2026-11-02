@@ -1,0 +1,46 @@
+import { drawOrganism } from '../render/organismDraw';
+import type { Look } from '../render/look';
+
+/** Small animated organism previews for menus (evolution chamber, codex, leap). */
+export class PreviewCanvas {
+  canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  look: Look;
+  bodyScale = 0.28;
+  angle = -0.5;
+  private dpr = Math.min(window.devicePixelRatio || 1, 2);
+  constructor(look: Look, cls = 'preview', bodyScale = 0.28) {
+    this.look = look;
+    this.bodyScale = bodyScale;
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = cls;
+    this.ctx = this.canvas.getContext('2d')!;
+  }
+  draw(t: number, speed = 0.35) {
+    const c = this.canvas;
+    const w = c.clientWidth || 120, h = c.clientHeight || 120;
+    const W = Math.round(w * this.dpr), H = Math.round(h * this.dpr);
+    if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+    const ctx = this.ctx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const r = Math.min(w, h) * this.bodyScale * (this.look.flagella ? 0.85 : 1);
+    // shift forward so trailing flagella / tentacles stay in frame
+    const tail = this.look.flagella || this.look.tentacles ? r * 0.55 : 0;
+    const a = this.angle;
+    drawOrganism(ctx, this.look, w / 2 + Math.cos(a) * tail, h / 2 + Math.sin(a) * tail, r, { seed: 2.1, t, speed, angle: this.angle + Math.sin(t * 0.4) * 0.15, detail: 1, glowScale: 0.5 });
+  }
+}
+
+export function staticPreview(look: Look, size: number, scale = 0.28, cls = 'preview'): HTMLCanvasElement {
+  const p = new PreviewCanvas(look, cls, scale);
+  p.canvas.style.width = size + 'px';
+  p.canvas.style.height = size + 'px';
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  p.canvas.width = size * dpr; p.canvas.height = size * dpr;
+  // draw synchronously with explicit size (element may not be laid out yet)
+  Object.defineProperty(p.canvas, 'clientWidth', { value: size });
+  Object.defineProperty(p.canvas, 'clientHeight', { value: size });
+  p.draw(1.3, 0.2);
+  return p.canvas;
+}

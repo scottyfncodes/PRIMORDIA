@@ -1,0 +1,223 @@
+import './style.css';
+import { Game, type InputState } from './game/game';
+import { Renderer } from './render/renderer';
+import { Input } from './engine/input';
+import { Audio } from './engine/audio';
+import { UI } from './ui/ui';
+import { PLAYER_SPAWN } from './sim/environment';
+import { TRAIT_BY_ID } from './game/traits';
+
+const canvas = document.getElementById('game') as HTMLCanvasElement;
+const game = new Game();
+const renderer = new Renderer(canvas);
+const audio = new Audio();
+const input = new Input(document.getElementById('touch')!, document.getElementById('joy')!, document.getElementById('joy-knob')!);
+input.mode = game.progress.data.settings.controls;
+audio.enabled = game.progress.data.settings.sound;
+
+const ui = new UI(game, audio, input, {
+  onStart: () => startRun(),
+  onRestart: () => startRun(),
+  onQuitToTitle: () => toTitle(),
+});
+
+let lastState = game.state;
+const hudEl = document.getElementById('hud')!;
+let deathTimer = -1;
+const inputState: InputState = { mx: 0, my: 0, burst: false, abilities: {} };
+
+function startRun() {
+  audio.unlock();
+  ui.closeScreen();
+  renderer.fx.clear();
+  game.newRun();
+  renderer.snapCamera(game);
+  renderer.cam.zoom *= 0.6; // gentle zoom-in reveal
+  input.reset();
+  input.enabled = true;
+  ui.showHud(true);
+  lastState = 'playing';
+  deathTimer = -1;
+}
+
+function toTitle() {
+  game.progress.flush();
+  input.enabled = false;
+  input.reset();
+  game.startAttract();
+  ui.showTitle();
+  lastState = 'title';
+}
+
+// title attract camera drift
+let attractT = 0;
+
+function handleEvents() {
+  const p = game.player;
+  const fx = renderer.fx;
+  const z = renderer.cam.zoom;
+  const textSize = 15 / z;
+  for (const e of game.events) {
+    ui.handleEvent(e);
+    switch (e.type) {
+      case 'eat':
+        fx.burst(e.x, e.y, 10 + Math.min(20, Math.round(e.r)), e.color, e.r * 4, e.r * 0.35);
+        fx.ring(e.x, e.y, e.r, e.r * 2.6, e.color, 0.45);
+        fx.text(e.x, e.y - e.r, e.dna ? `+${e.dna} DNA` : `+${Math.round(e.energy)}`, e.dna ? '#ffd166' : '#aaffe8', textSize * (e.dna ? 1.1 : 0.9));
+        if (e.toxic) fx.text(e.x, e.y + e.r, 'Toxic!', '#d78bff', textSize);
+        audio.eat(e.r / p.r);
+        break;
+      case 'absorb':
+        if (e.kind === 'dna') { fx.burst(e.x, e.y, 8, '#ffd166', p.r * 1.5, p.r * 0.12); fx.text(e.x, e.y - p.r * 0.4, `+${e.dna} DNA`, '#ffd166', textSize); }
+        else if (Math.random() < 0.6) fx.burst(e.x, e.y, 2, '#9cffe6', p.r * 0.8, p.r * 0.07);
+        audio.absorb(e.kind === 'dna');
+        break;
+      case 'bite':
+        if (e.blocked) { fx.ring(e.x, e.y, p.r, p.r * 2.2, '#fff2c0', 0.4); audio.blocked(); }
+        else { fx.shards(e.x, e.y, 10, '#ff6b6b', p.r * 5, p.r * 0.12); renderer.cam.shake = Math.min(1.2, 0.5 + e.dmg / 40); audio.bite(); fx.text(e.x, e.y - p.r * 1.2, `−${Math.round(e.dmg)}`, '#ff8a8a', textSize); }
+        break;
+      case 'reflect':
+        fx.burst(e.x, e.y, 14, '#ffffff', p.r * 6, p.r * 0.12);
+        fx.ring(e.x, e.y, p.r * 0.5, p.r * 2, '#ffffff', 0.35);
+        audio.blocked();
+        break;
+      case 'bounce':
+        fx.ring(e.x, e.y, p.r * 0.4, p.r * 1.3, e.reason === 'size' ? '#ffffff' : '#d9b8ff', 0.3);
+        if (e.reason === 'size') game.hint('bigger', 'Too big to swallow — grow larger, or evolve Pseudopods to engulf it', true);
+        audio.bounce();
+        break;
+      case 'spiny':
+        fx.shards(e.x, e.y, 6, '#d9b8ff', p.r * 4, p.r * 0.1);
+        renderer.cam.shake = 0.35;
+        audio.spiny();
+        break;
+      case 'burst':
+        fx.bubbles(e.x - Math.cos(e.angle) * p.r, e.y - Math.sin(e.angle) * p.r, 6, p.r * 0.6);
+        audio.burst();
+        break;
+      case 'ability':
+        if (e.id === 'pulse') fx.ring(e.x, e.y, p.r, p.r * 16, '#fff4c0', 1.1);
+        if (e.id === 'toxin') fx.burst(e.x, e.y, 30, '#c77dff', p.r * 5, p.r * 0.3);
+        if (e.id === 'harden') fx.ring(e.x, e.y, p.r * 1.6, p.r * 1.1, '#fff2c0', 0.4);
+        if (e.id === 'engulf') fx.ring(e.x, e.y, p.r, p.r * 1.6, p.look.membrane, 0.3);
+        audio.ability(e.id);
+        break;
+      case 'mutation': {
+        const t = TRAIT_BY_ID[e.traitId];
+        renderer.evolveFlash = 0.8;
+        fx.burst(p.x, p.y, 40, p.look.glow, p.r * 7, p.r * 0.25);
+        fx.ring(p.x, p.y, p.r, p.r * 5, p.look.membrane, 0.9);
+        fx.text(p.x, p.y - p.r * 2, t.levels[e.level - 1].name, '#ffffff', textSize * 1.3);
+        audio.mutation();
+        break;
+      }
+      case 'leap':
+        renderer.evolveFlash = 1.2;
+        renderer.cam.shake = 0.6;
+        fx.burst(p.x, p.y, 70, p.look.glow, p.r * 9, p.r * 0.3);
+        fx.ring(p.x, p.y, p.r, p.r * 9, '#ffffff', 1.4);
+        renderer.cam.zoom *= 1.9; // pull back to reveal the bigger world
+        audio.leap();
+        break;
+      case 'discover':
+        audio.discover();
+        break;
+      case 'death':
+        fx.burst(p.x, p.y, 50, p.look.glow, p.r * 6, p.r * 0.3);
+        fx.shards(p.x, p.y, 24, p.look.membrane, p.r * 4, p.r * 0.2);
+        renderer.cam.shake = 1;
+        audio.death();
+        break;
+      case 'npcEat':
+        if (Math.hypot(e.x - p.x, e.y - p.y) < renderer.viewRadiusWorld()) fx.burst(e.x, e.y, 5, '#ffb0a0', e.r * 2, e.r * 0.25);
+        break;
+      case 'npcDie':
+        fx.burst(e.x, e.y, 16, e.color, e.r * 3, e.r * 0.3);
+        break;
+      case 'heat':
+        fx.bubbles(e.x, e.y, 3, p.r * 0.5);
+        audio.heat();
+        break;
+      case 'satellitePop':
+        fx.burst(e.x, e.y, 12, p.look.glow, p.r * 3, p.r * 0.15);
+        audio.blocked();
+        break;
+    }
+  }
+  game.events.length = 0;
+}
+
+let last = performance.now();
+const STEP = 1 / 60;
+let acc = 0;
+
+function frame(now: number) {
+  requestAnimationFrame(frame);
+  let dt = (now - last) / 1000;
+  last = now;
+  if (dt > 0.1) dt = 0.1;
+  if (dt < 0) dt = 0;
+
+  game.viewR = renderer.viewRadiusWorld();
+
+  if (game.state === 'title') {
+    attractT += dt;
+    const cx = PLAYER_SPAWN.x + Math.sin(attractT * 0.05) * 600, cy = PLAYER_SPAWN.y + Math.cos(attractT * 0.037) * 300;
+    renderer.cam.x = cx; renderer.cam.y = cy;
+    renderer.cam.zoom = renderer.screenPlayerR() / 14;
+    game.updateAttract(dt, cx, cy);
+  } else {
+    acc += dt;
+    let steps = 0;
+    while (acc >= STEP && steps < 5) {
+      input.read(inputState);
+      game.update(STEP, inputState);
+      acc -= STEP;
+      steps++;
+      if (game.state !== 'playing') { acc = 0; break; }
+    }
+    if (steps >= 5) acc = 0;
+    if (game.state === 'playing' || game.state === 'dead') renderer.updateCamera(game, dt);
+    handleEvents();
+  }
+
+  // state transitions → screens
+  if (game.state !== lastState) {
+    if (game.state === 'evolve') { ui.showEvolve(); input.reset(); }
+    else if (game.state === 'leap') { ui.showLeap(); input.reset(); }
+    else if (game.state === 'dead') { deathTimer = 1.6; input.enabled = false; input.reset(); }
+    else if (game.state === 'playing' && (lastState === 'evolve' || lastState === 'leap')) { input.reset(); }
+    lastState = game.state;
+  }
+  if (deathTimer > 0) {
+    deathTimer -= dt;
+    if (deathTimer <= 0) { ui.showHud(false); ui.showDeath(); }
+  }
+
+  const p = game.player;
+  // drag-to-move needs the player's on-screen position
+  input.playerScreen.x = renderer.w / 2 + (p.x - renderer.cam.x) * renderer.cam.zoom;
+  input.playerScreen.y = renderer.h / 2 + (p.y - renderer.cam.y) * renderer.cam.zoom;
+  input.playerScreen.r = p.r * renderer.cam.zoom;
+
+  renderer.render(game, dt);
+  if (game.state !== 'title') ui.updateHud(dt);
+  hudEl.classList.toggle('dim', game.state !== 'playing');
+  ui.tick(now / 1000);
+  audio.update(dt, game.state === 'playing' ? game.danger : 0, game.env.light(renderer.cam.x, renderer.cam.y), renderer.cam.y / 6000, game.state === 'playing');
+}
+
+window.addEventListener('resize', () => renderer.resize());
+window.addEventListener('orientationchange', () => setTimeout(() => renderer.resize(), 200));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && game.state === 'playing') { ui.togglePause(); }
+  if (document.hidden) game.progress.flush();
+});
+window.addEventListener('pagehide', () => game.progress.flush());
+
+// expose for automated testing / debugging
+(window as unknown as { __primordia: unknown }).__primordia = { game, renderer, ui, input, startRun };
+
+toTitle();
+renderer.snapCamera(game);
+requestAnimationFrame(frame);

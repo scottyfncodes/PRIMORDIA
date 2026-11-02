@@ -33,7 +33,7 @@ export class Audio {
 
   /** Must be called from a user gesture (iOS). */
   unlock() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') void this.ctx.resume(); return; }
+    if (this.ctx) { this.wake(); return; }
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     const ctx = new AC();
@@ -63,6 +63,12 @@ export class Audio {
     this.music = new Music(ctx, this.master, this.reverb);
     this.music.setEra(this.era);
     this.music.setEnabled(this.musicOn);
+  }
+
+  /** iOS suspends (or 'interrupts') audio when the app is backgrounded or a call comes in; wake it on return. */
+  wake() {
+    const c = this.ctx;
+    if (c && c.state !== 'running' && c.state !== 'closed') void c.resume().catch(() => { /* needs a gesture; retried on next touch */ });
   }
 
   setMusic(on: boolean) {

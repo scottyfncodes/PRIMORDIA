@@ -11,6 +11,20 @@ import { TRAIT_BY_ID } from './game/traits';
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game();
 const renderer = new Renderer(canvas);
+// adaptive quality: remember a lowered render resolution between sessions
+const QUALITY_KEY = 'primordia.maxDpr';
+try { const q = parseFloat(localStorage.getItem(QUALITY_KEY) || ''); if (q >= 1 && q <= 2) { renderer.maxDpr = q; renderer.resize(); } } catch { /* storage unavailable */ }
+let frameEma = 16, slowT = 0, perfWarmup = 3;
+function watchPerformance(rawDt: number) {
+  if (document.hidden || game.state !== 'playing') { slowT = 0; return; }
+  if (perfWarmup > 0) { perfWarmup -= rawDt; return; }
+  frameEma += (rawDt * 1000 - frameEma) * 0.05;
+  slowT = frameEma > 24 ? slowT + rawDt : 0;
+  if (slowT > 2.5) {
+    slowT = 0; perfWarmup = 3; frameEma = 16;
+    if (renderer.degrade()) { try { localStorage.setItem(QUALITY_KEY, String(renderer.maxDpr)); } catch { /* ignore */ } }
+  }
+}
 const audio = new Audio();
 const input = new Input(document.getElementById('touch')!, document.getElementById('joy')!, document.getElementById('joy-knob')!);
 input.mode = game.progress.data.settings.controls;
@@ -225,6 +239,7 @@ function frame(now: number) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000;
   last = now;
+  if (dt > 0 && dt < 0.5) watchPerformance(dt);
   if (dt > 0.1) dt = 0.1;
   if (dt < 0) dt = 0;
 
@@ -284,7 +299,13 @@ function frame(now: number) {
 
 window.addEventListener('resize', () => renderer.resize());
 window.addEventListener('orientationchange', () => setTimeout(() => renderer.resize(), 200));
+// iOS: resume audio when returning to the app or on the next touch after an interruption
+const wakeAudio = () => audio.wake();
+document.addEventListener('touchstart', wakeAudio, { capture: true, passive: true });
+document.addEventListener('mousedown', wakeAudio, { capture: true });
+window.addEventListener('pageshow', wakeAudio);
 document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) wakeAudio();
   if (document.hidden && game.state === 'playing') { ui.togglePause(); }
   if (document.hidden) { autosave(); game.progress.flush(); }
 });

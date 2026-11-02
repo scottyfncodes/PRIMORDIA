@@ -46,8 +46,19 @@ export class Renderer {
     this.resize();
   }
 
+  /** Render resolution cap; lowered automatically on devices that struggle. */
+  maxDpr = 2;
+
+  /** Step render resolution down one notch. Returns false if already at the floor. */
+  degrade(): boolean {
+    if (this.maxDpr <= 1) return false;
+    this.maxDpr = this.maxDpr > 1.5 ? 1.5 : 1;
+    this.resize();
+    return true;
+  }
+
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, this.maxDpr);
     const w = window.innerWidth, h = window.innerHeight;
     this.dpr = dpr; this.w = w; this.h = h;
     this.canvas.width = Math.round(w * dpr);

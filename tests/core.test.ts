@@ -336,3 +336,45 @@ describe('save & resume', () => {
     expect(new RunStore(kv).load()).toBeNull();
   });
 });
+
+describe('art direction data', () => {
+  it('every species has a taxonomy entry and field-journal notes', async () => {
+    const { SPECIES } = await import('../src/sim/species');
+    const { cladeOf, characteristics, behaviour, habitat, relations } = await import('../src/game/codex');
+    const { CLADES } = await import('../src/game/codex');
+    for (const sp of SPECIES) {
+      const c = cladeOf(sp);
+      expect(CLADES[c.key]).toBeTruthy();
+      expect(characteristics(sp).length).toBeGreaterThan(0);
+      expect(behaviour(sp).length).toBeGreaterThan(0);
+      expect(habitat(sp).length).toBeGreaterThan(0);
+      expect(relations(sp).relatives).not.toContain(sp);
+    }
+  });
+  it('look morphing grows structures in and lands exactly on the new form', async () => {
+    const { baseLook, lerpLook } = await import('../src/render/look');
+    const a = baseLook({ membrane: '#000000' });
+    const b = baseLook({ membrane: '#ffffff', spikes: 16, spikeLen: 0.5 });
+    expect(lerpLook(a, b, 0)).toBe(a);
+    expect(lerpLook(a, b, 1)).toBe(b);
+    const mid = lerpLook(a, b, 0.5);
+    expect(mid.spikes).toBe(8);
+    expect(mid.membrane).toBe('#808080');
+  });
+});
+
+describe('lineage history', () => {
+  it('is recorded per era and survives save & resume', async () => {
+    const { snapshot } = await import('../src/game/save');
+    const g = new Game();
+    g.newRun();
+    g.player.addTrait('flagellum');
+    g.state = 'leap'; g.pendingLeapForm = formFor(2, 'predator'); g.confirmLeap();
+    g.player.addTrait('membrane');
+    expect(g.player.history.map((h) => h.formId)).toEqual(['protocell', 'e2-predator']);
+    expect(g.player.history[0].traits).toEqual(['flagellum']);
+    const h = new Game();
+    h.resumeRun(JSON.parse(JSON.stringify(snapshot(g))));
+    expect(h.player.history).toEqual(g.player.history);
+  });
+});

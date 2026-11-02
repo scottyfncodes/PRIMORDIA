@@ -36,6 +36,8 @@ export class Player {
   hurtT = 0; sinceHurt = 99; eatPulse = 0; growPulse = 0; transformT = -1;
   spinyCd = 0; heatT = 0;
   satellites: Satellite[] = [];
+  /** this life's evolutionary history: the form at each era and the mutations gained in it */
+  history: { era: number; formId: string; traits: string[] }[] = [];
   /** visible tentacle trail history */
   trail: { x: number; y: number }[] = [];
 
@@ -59,6 +61,8 @@ export class Player {
     this.engulfT = 0; this.hardenT = 0; this.pulseT = -1; this.strikeT = 0; this.hiddenT = 0;
     this.hurtT = 0; this.sinceHurt = 99; this.eatPulse = 0; this.growPulse = 0; this.transformT = -1;
     this.trail = [];
+    this.form = formFor(1, 'opportunist');
+    this.history = [{ era: 1, formId: this.form.id, traits: [] }];
     this.refresh();
     this.energy = this.maxEnergy * 0.8;
     this.hp = this.maxHp;
@@ -69,6 +73,7 @@ export class Player {
     this.traits[id] = lv;
     this.recentTraits[id] = (this.recentTraits[id] || 0) + 1;
     if (!this.traitOrder.includes(id)) this.traitOrder.push(id);
+    if (this.history.length) this.history[this.history.length - 1].traits.push(id);
     const prevMaxE = this.maxEnergy, prevMaxH = this.maxHp;
     this.refresh();
     // keep ratios when max values change

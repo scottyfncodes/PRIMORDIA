@@ -19,6 +19,8 @@ export interface SaveData {
   };
   settings: { sound: boolean; music: boolean; controls: 'joystick' | 'drag' };
   tutorialDone: boolean;
+  /** form ids of the most recent life's lineage (for the Tree of Life) */
+  lastLineage?: string[];
 }
 
 export const freshSave = (): SaveData => ({

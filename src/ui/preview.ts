@@ -33,7 +33,13 @@ export class PreviewCanvas {
   }
 }
 
-export function staticPreview(look: Look, size: number, scale = 0.28, cls = 'preview'): HTMLCanvasElement {
+/** Scale that frames a body kind comfortably in a square preview. */
+export function previewScale(look: Look) {
+  const b = look.body;
+  return b === 'worm' ? 0.18 : b === 'spiral' || b === 'rod' ? 0.2 : b === 'polyp' ? 0.24 : 0.28;
+}
+
+export function staticPreview(look: Look, size: number, scale = 0.28, cls = 'preview', silhouette = false): HTMLCanvasElement {
   const p = new PreviewCanvas(look, cls, scale);
   p.canvas.style.width = size + 'px';
   p.canvas.style.height = size + 'px';
@@ -43,5 +49,14 @@ export function staticPreview(look: Look, size: number, scale = 0.28, cls = 'pre
   Object.defineProperty(p.canvas, 'clientWidth', { value: size });
   Object.defineProperty(p.canvas, 'clientHeight', { value: size });
   p.draw(1.3, 0.2);
+  if (silhouette) {
+    // an unidentified shape glimpsed at the edge of vision
+    const ctx = p.canvas.getContext('2d')!;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = 'rgba(120,220,205,0.16)';
+    ctx.fillRect(0, 0, p.canvas.width, p.canvas.height);
+    ctx.globalCompositeOperation = 'source-over';
+  }
   return p.canvas;
 }

@@ -1,7 +1,9 @@
 import { Music } from './music';
 /**
  * Procedural WebAudio soundscape — no audio files.
- * Calm underwater ambience, soft organic feedback, and tension cues.
+ * The sound of listening into a drop of water: a soft fluid hiss, the Brownian
+ * crackle of molecules, slow membrane pulses, delicate organic feedback, and
+ * tension cues. Each region of the sea has its own texture.
  */
 const PENTA = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22];
 
@@ -21,6 +23,10 @@ export class Audio {
   private plinkT = 2;
   private music: Music | null = null;
   musicOn = true;
+  private crackleT = 0.5;
+  private throbT = 3;
+  private hissGain!: GainNode;
+  private zone = 'drift';
   private era = 1;
   private lastEat = 0;
   private lastAbsorb = 0;
@@ -108,16 +114,28 @@ export class Audio {
       o.connect(g); g.connect(this.padFilter);
       o.start(); lfo.start();
     });
-    // underwater rumble
+    // a faint low body to the fluid
     const n = ctx.createBufferSource();
     n.buffer = this.noiseBuf; n.loop = true;
-    const nf = ctx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 260;
-    const ng = ctx.createGain(); ng.gain.value = 0.16;
+    const nf = ctx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 200;
+    const ng = ctx.createGain(); ng.gain.value = 0.07;
     n.connect(nf); nf.connect(ng); ng.connect(this.ambient);
     n.start();
     const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
-    const lg = ctx.createGain(); lg.gain.value = 120;
+    const lg = ctx.createGain(); lg.gain.value = 90;
     lfo.connect(lg); lg.connect(nf.frequency); lfo.start();
+    // fluid hiss: the airy, close-up texture of liquid moving past a microphone
+    const white = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const wd = white.getChannelData(0);
+    for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1;
+    const hs = ctx.createBufferSource(); hs.buffer = white; hs.loop = true;
+    const hp = ctx.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = 2400; hp.Q.value = 0.5;
+    this.hissGain = ctx.createGain(); this.hissGain.gain.value = 0.012;
+    hs.connect(hp); hp.connect(this.hissGain); this.hissGain.connect(this.ambient);
+    hs.start();
+    const hl = ctx.createOscillator(); hl.frequency.value = 0.11;
+    const hlg = ctx.createGain(); hlg.gain.value = 0.006;
+    hl.connect(hlg); hlg.connect(this.hissGain.gain); hl.start();
     this.ambient.gain.setTargetAtTime(0.9, ctx.currentTime, 2);
   }
 
@@ -137,6 +155,9 @@ export class Audio {
     this.dangerOsc.start(); this.dangerLfo.start();
   }
 
+  /** Region and era colour the ambience. */
+  setPlace(zone: string, era: number) { this.zone = zone; this.era = era; }
+
   /** Per-frame ambience modulation. */
   update(dt: number, danger: number, light: number, depth: number, playing: boolean, onLand = false) {
     if (!this.ctx) return;
@@ -144,6 +165,24 @@ export class Audio {
     this.music?.update(playing ? danger : 0, onLand);
     // out of the water the deep rumble fades to a whisper of wind
     this.ambient.gain.setTargetAtTime(onLand ? 0.3 : 0.9, t, 1.2);
+    const micro = this.era <= 3;
+    // Brownian crackle: tiny clicks of particles jostling, denser near the vents
+    this.crackleT -= dt;
+    if (this.crackleT <= 0) {
+      const rate = !micro ? 0.4 : this.zone === 'vents' ? 9 : this.zone === 'thicket' ? 4 : this.zone === 'abyss' ? 1 : 2.5;
+      this.crackleT = (0.3 + Math.random()) / rate;
+      if (this.zone === 'vents' && micro && Math.random() < 0.35) this.tone(380 + Math.random() * 300, 2.4, 0.07, 0.012, 'sine', 0.002); // a bubble pops
+      else this.click(2600 + Math.random() * 4200, 0.006 + Math.random() * 0.01);
+    }
+    // a slow membrane pulse, like a heartbeat of the ecosystem
+    this.throbT -= dt;
+    if (this.throbT <= 0) {
+      this.throbT = 4 + Math.random() * 5;
+      if (micro) {
+        this.tone(64, 0.7, 0.9, 0.05, 'sine', 0.08, this.ambient);
+        setTimeout(() => this.ctx && this.tone(58, 0.7, 0.8, 0.03, 'sine', 0.08, this.ambient), 260);
+      }
+    }
     this.dangerGain.gain.setTargetAtTime(playing ? danger * danger * 0.5 : 0, t, 0.15);
     this.dangerLfo.frequency.setTargetAtTime(1.2 + danger * 2.2, t, 0.3);
     this.padFilter.frequency.setTargetAtTime(240 + light * 700 - depth * 80, t, 0.8);
@@ -171,6 +210,20 @@ export class Audio {
     o.start(t); o.stop(t + dur + 0.05);
   }
 
+  /** A very short filtered tick. */
+  private click(freq: number, vol: number) {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    const s = ctx.createBufferSource();
+    s.buffer = this.noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    s.connect(f); f.connect(g); g.connect(this.ambient);
+    s.start(t, Math.random() * 1.5); s.stop(t + 0.04);
+  }
+
   private noise(dur: number, freq: number, vol: number, q = 1, type: BiquadFilterType = 'bandpass', sweep = 1) {
     const ctx = this.ctx!;
     const t = ctx.currentTime;
@@ -192,10 +245,11 @@ export class Audio {
     const now = this.ctx.currentTime;
     if (now - this.lastEat < 0.05) return;
     this.lastEat = now;
-    const f = 520 / Math.max(0.4, Math.sqrt(sizeRatio));
-    this.tone(f, 0.45, 0.28, 0.14, 'sine', 0.004);
-    this.tone(f * 1.5, 0.6, 0.18, 0.05, 'triangle', 0.004);
-    this.noise(0.18, 900, 0.08, 2, 'bandpass', 0.4);
+    // an engulfing gulp: the membrane closes, a soft pop as the vacuole seals
+    const f = 420 / Math.max(0.4, Math.sqrt(sizeRatio));
+    this.tone(f, 0.42, 0.3, 0.12, 'sine', 0.006);
+    this.tone(f * 2.02, 0.5, 0.12, 0.025, 'sine', 0.004);
+    this.noise(0.16, 700, 0.06, 1.5, 'lowpass', 0.35);
   }
   absorb(dna: boolean) {
     if (!this.ctx) return;
@@ -225,14 +279,27 @@ export class Audio {
     if (id === 'ink') { this.noise(1.4, 300, 0.22, 0.6, 'lowpass', 0.3); this.tone(90, 0.7, 1.2, 0.08, 'sine', 0.05); }
     if (id === 'toxin') { this.noise(1.2, 700, 0.2, 0.7, 'bandpass', 0.3); this.tone(140, 0.7, 0.9, 0.08, 'sawtooth', 0.05); }
   }
+  /** A new species catalogued: a glassy specimen bell with an inharmonic shimmer. */
   discover() {
     if (!this.ctx) return;
-    [0, 7, 12].forEach((s, i) => setTimeout(() => this.tone(660 * Math.pow(2, s / 12), 1, 0.9, 0.06, 'sine', 0.01), i * 90));
+    const f = 880;
+    this.tone(f, 1, 2.2, 0.06, 'sine', 0.004);
+    this.tone(f * 2.76, 1, 1.2, 0.02, 'sine', 0.004);
+    this.tone(f * 5.4, 1, 0.6, 0.008, 'sine', 0.002);
+    setTimeout(() => { if (!this.ctx) return; this.tone(f * 1.5, 1, 1.8, 0.04, 'sine', 0.01); this.tone(f * 1.5 * 2.76, 1, 0.9, 0.012, 'sine', 0.01); }, 140);
+    this.noise(1.2, 5200, 0.015, 4, 'bandpass', 1.4);
+  }
+  /** Regions and milestones: a softer three-note chime. */
+  chime() {
+    if (!this.ctx) return;
+    [0, 7, 12].forEach((s, i) => setTimeout(() => this.ctx && this.tone(660 * Math.pow(2, s / 12), 1, 0.9, 0.05, 'sine', 0.01), i * 90));
   }
   mutation() {
     if (!this.ctx) return;
-    [0, 4, 7, 11, 14, 19].forEach((s, i) => setTimeout(() => this.tone(330 * Math.pow(2, s / 12), 1, 1.4, 0.07, 'sine', 0.02), i * 70));
-    this.noise(1.4, 600, 0.06, 0.6, 'bandpass', 4);
+    // the body reshapes: a deep membrane swell, then the new genes unfold upward
+    this.tone(90, 2.2, 1.2, 0.1, 'sine', 0.15);
+    [0, 4, 7, 11, 14, 19].forEach((s, i) => setTimeout(() => this.ctx && this.tone(330 * Math.pow(2, s / 12), 1, 1.4, 0.06, 'sine', 0.02), 120 + i * 80));
+    this.noise(1.6, 600, 0.05, 0.6, 'bandpass', 4);
   }
   leap() {
     if (!this.ctx) return;

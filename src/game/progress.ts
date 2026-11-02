@@ -17,7 +17,7 @@ export interface SaveData {
     totalEaten: number;
     deaths: Record<string, number>;
   };
-  settings: { sound: boolean; controls: 'joystick' | 'drag' };
+  settings: { sound: boolean; music: boolean; controls: 'joystick' | 'drag' };
   tutorialDone: boolean;
 }
 
@@ -30,7 +30,7 @@ export const freshSave = (): SaveData => ({
   zones: {},
   milestones: {},
   records: { runs: 0, bestTime: 0, bestDna: 0, mostEaten: 0, totalEaten: 0, deaths: {} },
-  settings: { sound: true, controls: 'joystick' },
+  settings: { sound: true, music: true, controls: 'joystick' },
   tutorialDone: false,
 });
 

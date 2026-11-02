@@ -298,3 +298,10 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   .offer { grid-template-columns: 1fr; }
   .o-art { min-height: 70px; } .o-canvas { width: 70px; height: 70px; }
 }
+
+/* saved life */
+.continue-card { display: flex; align-items: center; gap: 12px; text-align: left; padding: 10px 14px 10px 8px; border-radius: 18px; background: rgba(6, 28, 40, 0.7); border: 1px solid rgba(255, 209, 102, 0.35); margin-bottom: 4px; }
+.cc-art { flex: none; width: 76px; height: 76px; }
+.cc-canvas { width: 76px; height: 76px; }
+.cc-name { font-weight: 600; font-size: 17px; margin-top: 2px; }
+.cc-meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }

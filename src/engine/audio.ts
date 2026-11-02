@@ -1,3 +1,4 @@
+import { Music } from './music';
 /**
  * Procedural WebAudio soundscape — no audio files.
  * Calm underwater ambience, soft organic feedback, and tension cues.
@@ -18,6 +19,9 @@ export class Audio {
   private noiseBuf!: AudioBuffer;
   enabled = true;
   private plinkT = 2;
+  private music: Music | null = null;
+  musicOn = true;
+  private era = 1;
   private lastEat = 0;
   private lastAbsorb = 0;
 
@@ -50,6 +54,19 @@ export class Audio {
     for (let i = 0; i < len; i++) { b = (b + (Math.random() * 2 - 1) * 0.02) * 0.995; d[i] = b * 6; }
     this.startAmbience();
     this.startDanger();
+    this.music = new Music(ctx, this.master, this.reverb);
+    this.music.setEra(this.era);
+    this.music.setEnabled(this.musicOn);
+  }
+
+  setMusic(on: boolean) {
+    this.musicOn = on;
+    this.music?.setEnabled(on);
+  }
+
+  setEra(era: number) {
+    this.era = era;
+    this.music?.setEra(era);
   }
 
   setEnabled(on: boolean) {
@@ -121,15 +138,18 @@ export class Audio {
   }
 
   /** Per-frame ambience modulation. */
-  update(dt: number, danger: number, light: number, depth: number, playing: boolean) {
+  update(dt: number, danger: number, light: number, depth: number, playing: boolean, onLand = false) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
+    this.music?.update(playing ? danger : 0, onLand);
+    // out of the water the deep rumble fades to a whisper of wind
+    this.ambient.gain.setTargetAtTime(onLand ? 0.3 : 0.9, t, 1.2);
     this.dangerGain.gain.setTargetAtTime(playing ? danger * danger * 0.5 : 0, t, 0.15);
     this.dangerLfo.frequency.setTargetAtTime(1.2 + danger * 2.2, t, 0.3);
     this.padFilter.frequency.setTargetAtTime(240 + light * 700 - depth * 80, t, 0.8);
     // occasional distant bioluminescent plinks
     this.plinkT -= dt;
-    if (this.plinkT <= 0) {
+    if (this.plinkT <= 0 && !this.musicOn) {
       this.plinkT = 1.6 + Math.random() * 4;
       const base = 440 * Math.pow(2, PENTA[Math.floor(Math.random() * PENTA.length)] / 12) * (light > 0.4 ? 1 : 0.5);
       this.tone(base, 0.0, 2.4, 0.025, 'sine', 0.002);

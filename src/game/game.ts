@@ -7,6 +7,7 @@ import { Player } from './player';
 import { Progress } from './progress';
 import { ABILITY_INFO, generateOffers, TRAIT_BY_ID, type AbilityId, type Offer } from './traits';
 import { ERAS, formFor, MAX_PLAYABLE_ERA, type FormDef } from './eras';
+import { restoreInto, type RunSnapshot } from './save';
 
 export type GameState = 'title' | 'playing' | 'paused' | 'evolve' | 'leap' | 'dead';
 
@@ -129,6 +130,34 @@ export class Game {
       reaction: p.stats.reaction,
       onLand: p.onLand,
     };
+  }
+
+  /** Resume a saved life: the lineage is restored and a fresh ecosystem grows around it. */
+  resumeRun(s: RunSnapshot) {
+    const era = ERAS[s.player.eraIndex - 1];
+    this.env.setScale(era.worldScale);
+    this.env.land = s.player.eraIndex >= 6;
+    this.player.reset(s.player.x, s.player.y);
+    this.run = newRunStats();
+    restoreInto(this, s);
+    const p = this.player;
+    p.x = clamp(p.x, p.r, this.env.w - p.r); p.y = clamp(p.y, p.r, this.env.h - p.r);
+    this.world.reset(era);
+    this.world.runTime = 999;
+    this.offers = generateOffers(p.traits, p.eraIndex);
+    this.pendingLeapForm = null;
+    this.leapBlockedHint = false;
+    this.events.length = 0;
+    this.viewR = Math.max(this.viewR, p.r * 24);
+    this.world.cx = p.x; this.world.cy = p.y; this.world.viewR = this.viewR;
+    this.world.collideRocks(p);
+    this.world.populate(p.x, p.y, p.r * 9);
+    p.onLand = this.env.isLand(p.x, p.y);
+    p.hiddenT = 2.5;
+    this.currentZone = this.env.zoneAt(p.x, p.y);
+    this.state = 'playing';
+    this.hintsShown.delete('!resume');
+    this.hint('!resume', `Welcome back — your ${p.form.name} lineage continues`, true);
   }
 
   newRun() {

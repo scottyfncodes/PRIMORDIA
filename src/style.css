@@ -51,8 +51,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
 }
 .hud-left { width: min(56vw, 250px); }
-.org-line { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; letter-spacing: 0.02em; text-shadow: 0 1px 8px rgba(0,0,0,0.6); }
-.era-chip { font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--teal); background: rgba(0,20,28,0.4); }
+.org-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; min-width: 0; font-weight: 600; font-size: 14px; letter-spacing: 0.02em; text-shadow: 0 1px 8px rgba(0,0,0,0.6); }
+.org-line #form-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.era-chip { flex: none; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--teal); background: rgba(0,20,28,0.4); }
 .bars { margin-top: 7px; display: grid; gap: 5px; }
 .bar { display: flex; align-items: center; gap: 6px; }
 .b-ic { width: 14px; font-size: 11px; text-align: center; opacity: 0.85; }

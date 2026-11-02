@@ -47,6 +47,15 @@ export interface Look {
   lateral?: boolean;
   gills?: boolean;
   ink?: boolean;
+  /** ── vertebrate body plan (Era V) ── */
+  vertebrate?: boolean;
+  jaw?: number;
+  headArmor?: boolean;
+  lobeFins?: boolean;
+  scales?: boolean;
+  electro?: boolean;
+  mottled?: boolean;
+  forkTail?: boolean;
 }
 
 export const baseLook = (o: Partial<Look>): Look => ({

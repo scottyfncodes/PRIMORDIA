@@ -74,6 +74,8 @@ export const MILESTONES: Record<string, { name: string; desc: string; dna: numbe
   era2: { name: 'The Great Oxidation', desc: 'Became a complex cell (Era II).', dna: 0 },
   era3: { name: 'Many Become One', desc: 'Became multicellular (Era III).', dna: 0 },
   era4: { name: 'The Cambrian Explosion', desc: 'Became an early animal (Era IV).', dna: 0 },
+  era5: { name: 'Age of Fishes', desc: 'Grew a backbone (Era V).', dna: 0 },
+  titan: { name: 'Giant Slayer', desc: 'Brought down an Iron-Jaw Titan.', dna: 60 },
   frontier: { name: 'Edge of the Known', desc: 'Reached full size in the last charted era.', dna: 25 },
   apex: { name: 'Apex Predator', desc: 'Took down a Clawed Raptor.', dna: 30 },
   explorer: { name: 'Cartographer of the Deep', desc: 'Visited every zone in one run.', dna: 15 },
@@ -117,7 +119,7 @@ export class Game {
       predatorDeter: p.stats.predatorDeter + (p.hardenT > 0 ? 0.3 : 0),
       detectability: p.stats.detectability,
       lure: p.stats.lure,
-      hidden: p.hiddenT > 0,
+      hidden: p.hiddenT > 0 || (p.stats.stealth > 0 && p.stillT > 0.6),
       reaction: p.stats.reaction,
     };
   }
@@ -254,7 +256,7 @@ export class Game {
       const s = p.satellites[i];
       s.a += dt * 0.9;
       const a = s.a;
-      const d = p.r * 1.75;
+      const d = p.r * (1.55 + ns * 0.1);
       const tx2 = p.x + Math.cos(a) * d, ty2 = p.y + Math.sin(a) * d;
       s.x += (tx2 - s.x) * Math.min(1, dt * 8);
       s.y += (ty2 - s.y) * Math.min(1, dt * 8);
@@ -263,6 +265,8 @@ export class Game {
 
     // burst
     p.burstT -= dt; p.burstCd -= dt;
+    // stealth: holding still with countershading makes you vanish
+    if (Math.hypot(p.vx, p.vy) < p.maxSpeed * 0.18 && p.burstT <= 0) p.stillT += dt; else p.stillT = 0;
     if (input.burst && p.burstCd <= 0) {
       const cost = 5 * st.burstCost * (1 + (p.eraIndex - 1) * 0.3);
       if (p.energy > cost + 1) {
@@ -336,7 +340,7 @@ export class Game {
         if (o.dyingT >= 0) continue;
         const dx = o.x - p.x, dy = o.y - p.y, d = Math.hypot(dx, dy) || 1;
         const facing = (dx * Math.cos(p.angle) + dy * Math.sin(p.angle)) / d;
-        const score = d * (1.6 - facing) * (o.r <= p.r * 1.35 ? 1 : 2.5);
+        const score = d * (1.6 - facing) * (o.r <= p.r * p.stats.strikeRatio ? 1 : 2.5);
         if (score < bs) { bs = score; best = o; }
       }
       let ax = Math.cos(p.angle), ay = Math.sin(p.angle);
@@ -357,7 +361,7 @@ export class Game {
   /** Eat rules: size ratio, defensive traits and adaptations decide. */
   canEat(o: Organism, assumeEngulf = false): 'ok' | 'size' | 'spiny' | 'shelled' {
     const p = this.player, st = p.stats;
-    if (p.strikeT > 0) return o.r <= p.r * 1.35 ? 'ok' : 'size';
+    if (p.strikeT > 0) return o.r <= p.r * st.strikeRatio ? 'ok' : 'size';
     const engulfing = st.engulfRatio > 0 && (assumeEngulf || p.engulfT > 0);
     const ratio = engulfing ? Math.max(st.eatRatio, st.engulfRatio) : st.eatRatio;
     if (o.r > p.r * ratio) return 'size';
@@ -404,12 +408,13 @@ export class Game {
       if (p.strikeT > 0) {
         // claws wound what they cannot swallow
         p.strikeT = 0;
-        o.hp -= o.maxHp * 0.35 + 40 * p.eraIndex;
+        o.hp -= (o.maxHp * 0.14 + 60 * p.eraIndex) * st.strikeDamage;
         o.stunT = 1.5; o.hurtT = 0.4;
         o.mode = 'flee'; o.fleeX = p.x; o.fleeY = p.y; o.target = null; o.targetIsPlayer = false; o.restT = 4;
         p.vx *= -0.3; p.vy *= -0.3;
         this.events.push({ type: 'strikeHit', x: o.x, y: o.y, r: o.r, kill: o.hp <= 0 });
-        if (o.hp <= 0) { this.world.kill(o, false); if (o.sp.category === 'predator') this.milestone('first_predator'); if (o.sp.id === 'raptor') this.milestone('apex'); }
+        if (o.hp <= 0) { this.world.kill(o, false); if (o.sp.category === 'predator') this.milestone('first_predator'); if (o.sp.id === 'raptor') this.milestone('apex');
+    if (o.sp.id === 'titan') this.milestone('titan'); }
         continue;
       }
       // threat bites
@@ -481,7 +486,7 @@ export class Game {
     this.run.nutrients++;
     if (n.dna) this.gainDna(n.dna);
     this.events.push({ type: 'absorb', x: n.x, y: n.y, kind: n.kind, dna: n.dna });
-    if (this.run.nutrients === 3) this.hint('prey', 'Cells smaller than you are prey — swim into them to eat');
+    if (this.run.nutrients === 3) this.hint('prey', 'Anything smaller than you is prey — swim into it to eat');
   }
 
   private consume(o: Organism) {
@@ -498,7 +503,7 @@ export class Game {
     if (toxic) this.damage(p.maxHp * 0.18, 'toxin', o.sp);
     this.observe(o);
     const outgrown = Math.max(...o.sp.eras) < p.eraIndex;
-    const eraK = p.eraIndex === 1 ? 1 : p.eraIndex === 2 ? 0.32 : p.eraIndex === 3 ? 0.2 : 0.11;
+    const eraK = [1, 0.32, 0.2, 0.11, 0.07][p.eraIndex - 1] ?? 0.07;
     const dnaRaw = o.sp.dna * Math.min(1.2, Math.max(0.25, rel * 1.6)) * (outgrown ? 0.3 : 1) * eraK;
     const dna = Math.floor(dnaRaw) + (Math.random() < dnaRaw % 1 ? 1 : 0);
     this.gainDna(dna);
@@ -508,6 +513,7 @@ export class Game {
     this.milestone('first_meal');
     if (o.sp.category === 'predator') { this.run.predatorsEaten++; this.milestone('first_predator'); }
     if (o.sp.id === 'raptor') this.milestone('apex');
+    if (o.sp.id === 'titan') this.milestone('titan');
     if (o.sp.category === 'rare') this.milestone('rare_feast');
   }
 
@@ -645,7 +651,7 @@ export class Game {
       if (this.isThreat(o)) {
         if (d < nearest) { nearest = d; this.dangerDir = Math.atan2(o.y - p.y, o.x - p.x); }
         if (p.stats.sense > 0) this.threats.push({ x: o.x, y: o.y, d });
-        if (o.targetIsPlayer) this.hint('threat', 'Cells with a red halo are hunting you — evade them!');
+        if (o.targetIsPlayer) this.hint('threat', 'A red halo means something is hunting you — evade it!');
       } else if (p.stats.sense > 0 && o.sp.category === 'rare') {
         this.revealed.push({ x: o.x, y: o.y, rare: true });
       }
@@ -720,7 +726,7 @@ export class Game {
   openLeap() {
     if (this.state !== 'playing') return;
     const p = this.player;
-    this.pendingLeapForm = formFor(p.eraIndex + 1, p.archetype);
+    this.pendingLeapForm = formFor(p.eraIndex + 1, p.leapArchetype);
     this.state = 'leap';
   }
 
@@ -729,6 +735,7 @@ export class Game {
     const p = this.player;
     p.eraIndex++;
     p.form = this.pendingLeapForm;
+    p.recentTraits = {};
     p.growth = 0;
     p.r = p.targetR = p.era.minR;
     p.refresh();
@@ -756,7 +763,7 @@ export class Game {
     this.run.formsReached.push(p.form.name);
     this.offers = generateOffers(p.traits, p.eraIndex);
     this.leapBlockedHint = false;
-    this.milestone(p.eraIndex === 2 ? 'era2' : p.eraIndex === 3 ? 'era3' : 'era4');
+    this.milestone('era' + p.eraIndex);
     this.events.push({ type: 'leap', era: p.eraIndex, form: p.form, first });
     this.pendingLeapForm = null;
     this.state = 'playing';

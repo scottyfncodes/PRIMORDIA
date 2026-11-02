@@ -24,8 +24,8 @@ export const ERAS: EraDef[] = [
   { index: 1, numeral: 'I', name: 'Primordial Life', subtitle: 'Single cells in a young sea', playable: true, minR: 10, maxR: 20, growthNeeded: 300, mutationsToLeap: 2, drain: 1.25, nutrientR: 2.6, nutrientEnergy: 3.2, dnaMoteChance: 0.06, populationTarget: 64, worldScale: 1 },
   { index: 2, numeral: 'II', name: 'Complex Cells', subtitle: 'Nuclei, organelles and new ways to eat', playable: true, minR: 24, maxR: 46, growthNeeded: 1250, mutationsToLeap: 5, drain: 1.7, nutrientR: 5, nutrientEnergy: 4.2, dnaMoteChance: 0.045, populationTarget: 60, worldScale: 1 },
   { index: 3, numeral: 'III', name: 'Multicellular Life', subtitle: 'Many cells, one body', playable: true, minR: 56, maxR: 104, growthNeeded: 3200, mutationsToLeap: 9, drain: 2.2, nutrientR: 10, nutrientEnergy: 5.5, dnaMoteChance: 0.035, populationTarget: 54, worldScale: 2 },
-  { index: 4, numeral: 'IV', name: 'Early Aquatic Life', subtitle: 'Primitive swimmers, hunters and the first eyes', playable: true, minR: 112, maxR: 200, growthNeeded: 6000, mutationsToLeap: 99, drain: 2.8, nutrientR: 20, nutrientEnergy: 7, dnaMoteChance: 0.03, populationTarget: 46, worldScale: 4 },
-  { index: 5, numeral: 'V', name: 'Vertebrate Life', subtitle: 'Backbones, fins and complex predators', playable: false, minR: 0, maxR: 0, growthNeeded: 0, mutationsToLeap: 0, drain: 0, nutrientR: 0, nutrientEnergy: 0, dnaMoteChance: 0, populationTarget: 0, worldScale: 4 },
+  { index: 4, numeral: 'IV', name: 'Early Aquatic Life', subtitle: 'Primitive swimmers, hunters and the first eyes', playable: true, minR: 112, maxR: 200, growthNeeded: 6000, mutationsToLeap: 13, drain: 2.8, nutrientR: 20, nutrientEnergy: 7, dnaMoteChance: 0.03, populationTarget: 46, worldScale: 4 },
+  { index: 5, numeral: 'V', name: 'Vertebrate Life', subtitle: 'Backbones, fins and complex predators', playable: true, minR: 230, maxR: 400, growthNeeded: 11000, mutationsToLeap: 99, drain: 3.4, nutrientR: 40, nutrientEnergy: 9, dnaMoteChance: 0.025, populationTarget: 40, worldScale: 8 },
   { index: 6, numeral: 'VI', name: 'Land Transition', subtitle: 'A new world above the water', playable: false, minR: 0, maxR: 0, growthNeeded: 0, mutationsToLeap: 0, drain: 0, nutrientR: 0, nutrientEnergy: 0, dnaMoteChance: 0, populationTarget: 0, worldScale: 4 },
 ];
 
@@ -74,7 +74,24 @@ export const FORMS: FormDef[] = [
   { id: 'e4-defender', era: 4, archetype: 'defender', name: 'Armoured Crawler', desc: 'Jointed plates from head to tail. Predators break their mouths on it.', shape: (l) => { swimmer(l); l.carapace = true; l.segments = 9; l.eyes = Math.max(l.eyes || 0, 1); l.fins = (l.fins || 0) + 1; l.tailFin = (l.tailFin || 0) + 0.5; l.elong = Math.min(l.elong, 0.3); } },
   { id: 'e4-opportunist', era: 4, archetype: 'opportunist', name: 'Finned Forager', desc: 'Quick, nimble and never picky — a body built to turn and to taste the water.', shape: (l) => { swimmer(l); l.fins = (l.fins || 0) + 3; l.tailFin = (l.tailFin || 0) + 1.1; l.eyes = Math.max(l.eyes || 0, 1); l.segments = 7; l.receptors = 2; } },
   { id: 'e4-phototroph', era: 4, archetype: 'phototroph', name: 'Frond Glider', desc: 'A gliding animal draped in living, sun-drinking fronds.', shape: (l) => { swimmer(l); l.fronds = (l.fronds || 0) + 4; l.fins = (l.fins || 0) + 2; l.eyes = Math.max(l.eyes || 0, 1); l.segments = 7; l.tailFin = (l.tailFin || 0) + 0.6; } },
+
+  { id: 'e5-predator', era: 5, archetype: 'predator', name: 'Cartilage Hunter', desc: 'Jaws, teeth and a forked tail: the template every great hunter will follow.', shape: (l) => { fish(l, 0.95); l.jaw = 2; l.forkTail = true; l.eyes = Math.max(l.eyes || 0, 1); l.fins = Math.max(l.fins || 0, 2) + 2; l.tailFin = (l.tailFin || 0) + 1.2; } },
+  { id: 'e5-defender', era: 5, archetype: 'defender', name: 'Plated Placoderm', desc: 'A fish in a suit of bone, with a head shield no predator wants to bite.', shape: (l) => { fish(l, 0.45); l.headArmor = true; l.jaw = Math.max(l.jaw || 0, 1); l.scales = true; l.fins = Math.max(l.fins || 0, 2); l.tailFin = (l.tailFin || 0) + 0.8; } },
+  { id: 'e5-opportunist', era: 5, archetype: 'opportunist', name: 'Lobe-Finned Rover', desc: 'Fleshy, boned fins that can push off the sea floor. Somewhere in them, legs are waiting.', shape: (l) => { fish(l, 0.6); l.lobeFins = true; l.fins = Math.max(l.fins || 0, 4); l.scales = true; l.jaw = Math.max(l.jaw || 0, 1); l.tailFin = (l.tailFin || 0) + 0.9; } },
+  { id: 'e5-phototroph', era: 5, archetype: 'phototroph', name: 'Kelp-Backed Drifter', desc: 'A gentle fish wearing a living garden of algae on its back, basking in the shallows.', shape: (l) => { fish(l, 0.55); l.fronds = Math.max(l.fronds || 0, 3) + 2; l.mottled = true; l.fins = Math.max(l.fins || 0, 2); l.tailFin = (l.tailFin || 0) + 0.7; } },
 ];
+
+/** Shared Era V vertebrate body plan. */
+function fish(l: Look, elong: number) {
+  swimmer(l);
+  l.vertebrate = true;
+  l.carapace = false;
+  l.claws = 0;
+  l.receptors = 0;
+  l.elong = elong;
+  l.segments = 10;
+  l.eyes = Math.max(l.eyes || 0, 1);
+}
 
 /** Shared Era IV animal body plan. */
 function swimmer(l: Look) {

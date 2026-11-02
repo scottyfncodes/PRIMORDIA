@@ -128,7 +128,7 @@ describe('eat rules', () => {
 
 describe('era IV', () => {
   it('is playable and reachable from Era III', () => {
-    expect(MAX_PLAYABLE_ERA).toBe(4);
+    expect(MAX_PLAYABLE_ERA).toBeGreaterThanOrEqual(4);
     expect(ERAS[2].mutationsToLeap).toBeLessThan(20);
     expect(SPECIES.filter((s) => s.eras.includes(4)).length).toBeGreaterThanOrEqual(8);
   });
@@ -163,5 +163,52 @@ describe('era IV', () => {
     expect(g.canEat(o)).not.toBe('ok');
     p.strikeT = 0.5;
     expect(g.canEat(o)).toBe('ok');
+  });
+});
+
+describe('era V', () => {
+  it('is playable with vertebrate forms, species and mutations', () => {
+    expect(MAX_PLAYABLE_ERA).toBe(5);
+    expect(ERAS[3].mutationsToLeap).toBeLessThan(20);
+    expect(SPECIES.filter((s) => s.eras.includes(5)).length).toBeGreaterThanOrEqual(8);
+    for (const f of FORMS.filter((f) => f.era === 5)) {
+      const l = buildPlayerLook({ carapace: 1, claws: 1 }, 5, f);
+      expect(l.vertebrate).toBe(true);
+      // invertebrate armour and claws are re-expressed as head armour and jaws
+      expect(l.carapace).toBe(false);
+      expect(l.claws).toBe(0);
+      expect(l.jaw).toBeGreaterThanOrEqual(2);
+    }
+  });
+  it('recent choices steer the next leap', () => {
+    const g = new Game();
+    g.newRun();
+    const p = g.player;
+    ['membrane', 'membrane', 'cilia', 'cilia'].forEach((t) => p.addTrait(t));
+    p.recentTraits = {};
+    p.addTrait('flagellum'); p.addTrait('flagellum'); p.addTrait('sensory');
+    expect(p.leapArchetype).toBe('predator');
+  });
+  it('jaws make strikes seize bigger prey and countershading hides a still player', () => {
+    const g = new Game();
+    g.newRun();
+    const p = g.player;
+    p.addTrait('jaws');
+    expect(p.stats.strikeRatio).toBe(1.5);
+    expect(p.stats.abilities).toContain('strike');
+    p.addTrait('camo');
+    p.vx = 0; p.vy = 0;
+    for (let i = 0; i < 60; i++) g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} });
+    expect(g.playerLike.hidden).toBe(true);
+  });
+  it('leaps all the way to Era V with an 8x sea', () => {
+    const g = new Game();
+    g.newRun();
+    for (let e = 2; e <= 5; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, 'defender'); g.confirmLeap(); }
+    expect(g.player.eraIndex).toBe(5);
+    expect(g.env.scale).toBe(8);
+    expect(g.world.countAlive()).toBeGreaterThan(10);
+    for (let i = 0; i < 200; i++) g.update(1 / 60, { mx: 0.7, my: 0.7, burst: i % 50 === 0, abilities: {} });
+    expect(Number.isFinite(g.player.x)).toBe(true);
   });
 });

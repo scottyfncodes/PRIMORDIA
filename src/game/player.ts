@@ -12,6 +12,9 @@ export class Player {
   energy = 100; hp = 100;
   traits: TraitLevels = {};
   traitOrder: string[] = [];
+  /** mutations gained during the current era (weights the next leap's form) */
+  recentTraits: TraitLevels = {};
+  stillT = 0;
   stats: Stats = deriveStats({});
   eraIndex = 1;
   form: FormDef = formFor(1, 'opportunist');
@@ -32,13 +35,16 @@ export class Player {
   trail: { x: number; y: number }[] = [];
 
   get era(): EraDef { return ERAS[this.eraIndex - 1]; }
+  /** lineage direction for the next leap, favouring recent choices */
+  get leapArchetype(): Archetype { return dominantArchetype(this.traits, this.recentTraits); }
+
   get maxEnergy() { return 100 * this.stats.maxEnergy; }
   get maxHp() { return 100 * this.stats.maxHp; }
   get mutationCount() { return Object.values(this.traits).reduce((a, b) => a + b, 0); }
 
   reset(x: number, y: number) {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0;
-    this.traits = {}; this.traitOrder = [];
+    this.traits = {}; this.traitOrder = []; this.recentTraits = {}; this.stillT = 0;
     this.eraIndex = 1;
     this.r = this.targetR = ERAS[0].minR;
     this.growth = 0; this.dna = 0; this.dnaTotal = 0;
@@ -56,6 +62,7 @@ export class Player {
   addTrait(id: string) {
     const lv = (this.traits[id] || 0) + 1;
     this.traits[id] = lv;
+    this.recentTraits[id] = (this.recentTraits[id] || 0) + 1;
     if (!this.traitOrder.includes(id)) this.traitOrder.push(id);
     const prevMaxE = this.maxEnergy, prevMaxH = this.maxHp;
     this.refresh();
@@ -96,7 +103,7 @@ export class Player {
     return s;
   }
 
-  get canSeeThreatRatio() { return Math.max(this.stats.eatRatio, this.engulfT > 0 ? this.stats.engulfRatio : 0, this.strikeT > 0 ? 1.35 : 0); }
+  get canSeeThreatRatio() { return Math.max(this.stats.eatRatio, this.engulfT > 0 ? this.stats.engulfRatio : 0, this.strikeT > 0 ? this.stats.strikeRatio : 0); }
 }
 
 export function buildPlayerLook(traits: TraitLevels, eraIndex: number, form: FormDef): Look {
@@ -120,6 +127,12 @@ export function buildPlayerLook(traits: TraitLevels, eraIndex: number, form: For
   for (const id of Object.keys(traits)) {
     const t = TRAIT_BY_ID[id];
     if (t && traits[id] > 0) t.look(l, traits[id]);
+  }
+  // older invertebrate structures are re-expressed in a backboned body
+  if (l.vertebrate) {
+    if (l.carapace) { l.carapace = false; l.headArmor = true; l.scales = true; }
+    if (l.claws) { l.jaw = Math.max(l.jaw || 0, 2); l.claws = 0; }
+    l.receptors = 0;
   }
   return l;
 }

@@ -496,7 +496,7 @@ export class Renderer {
     }
     const transform = p.transformT >= 0 ? Math.sin(Math.min(1, p.transformT / 1.6) * Math.PI) : 0;
     drawOrganism(ctx, look, p.x, p.y, p.r * (1 + transform * 0.12), {
-      seed: 3.7, t, speed: spd, angle: p.angle, alpha: deadK ? (p.hiddenT > 0 ? 0.55 : 1) : 0.35,
+      seed: 3.7, t, speed: spd, angle: p.angle, alpha: deadK ? (p.hiddenT > 0 || (p.stats.stealth > 0 && p.stillT > 0.6) ? 0.55 : 1) : 0.35,
       hurt: p.hurtT > 0 ? p.hurtT * 2.5 : 0, flash: transform * 0.8, engulf: p.engulfT > 0 ? 1 : 0,
       harden: p.hardenT > 0 ? 0.6 + 0.4 * Math.sin(t * 12) : 0, pulse: Math.max(p.eatPulse, p.growPulse), detail: 1,
     });

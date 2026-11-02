@@ -654,7 +654,8 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
   const t = o.t, seed = o.seed;
   const elong = Math.min(1.6, Math.max(0, l.elong));
   const L = r * (2.1 + elong * 0.6);
-  const halfW = r * (0.6 - elong * 0.15);
+  const vert = !!l.vertebrate;
+  const halfW = r * (vert ? 0.62 - elong * 0.12 : 0.6 - elong * 0.15);
   const N = Math.min(16, Math.max(4, l.segments || 8));
   const spd = Math.min(1.5, o.speed);
   const amp = r * (0.07 + 0.12 * spd);
@@ -664,7 +665,9 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     const u = i / N;
     SX[i] = L / 2 - u * L;
     SY[i] = Math.sin(u * 2.8 - t * freq + seed) * amp * Math.pow(u, 1.3);
-    const prof = u < 0.14 ? 0.55 + 0.45 * Math.sqrt(u / 0.14) : 1 - 0.78 * Math.pow((u - 0.14) / 0.86, 1.35);
+    const prof = vert
+      ? (u < 0.22 ? 0.62 + 0.38 * Math.sqrt(u / 0.22) : 1 - 0.86 * Math.pow((u - 0.22) / 0.78, 1.7))
+      : (u < 0.14 ? 0.55 + 0.45 * Math.sqrt(u / 0.14) : 1 - 0.78 * Math.pow((u - 0.14) / 0.86, 1.35));
     SW[i] = halfW * prof * (1 + (o.pulse || 0) * 0.08);
   }
   for (let i = 0; i <= N; i++) {
@@ -689,9 +692,17 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.lineWidth = Math.max(0.8, r * 0.03);
     ctx.beginPath();
     ctx.moveTo(-size * 0.05, 0);
-    ctx.quadraticCurveTo(size * 0.5, -size * 0.25, size * 1.05, -size * 0.7);
-    ctx.quadraticCurveTo(size * 0.7, 0, size * 1.05, size * 0.7);
-    ctx.quadraticCurveTo(size * 0.5, size * 0.25, -size * 0.05, 0);
+    if (l.forkTail) {
+      // deeply forked, shark-like caudal fin
+      ctx.quadraticCurveTo(size * 0.6, -size * 0.3, size * 1.25, -size * 0.85);
+      ctx.quadraticCurveTo(size * 0.55, -size * 0.1, size * 0.45, 0);
+      ctx.quadraticCurveTo(size * 0.55, size * 0.1, size * 1.05, size * 0.6);
+      ctx.quadraticCurveTo(size * 0.5, size * 0.25, -size * 0.05, 0);
+    } else {
+      ctx.quadraticCurveTo(size * 0.5, -size * 0.25, size * 1.05, -size * 0.7);
+      ctx.quadraticCurveTo(size * 0.7, 0, size * 1.05, size * 0.7);
+      ctx.quadraticCurveTo(size * 0.5, size * 0.25, -size * 0.05, 0);
+    }
     ctx.fill(); ctx.stroke();
     // fin rays
     ctx.strokeStyle = rgba('#ffffff', 0.25 * alpha);
@@ -716,14 +727,28 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.save();
     ctx.translate(baseX, baseY);
     ctx.rotate(ang);
-    ctx.fillStyle = rgba(l.membrane, 0.42 * alpha);
-    ctx.strokeStyle = rgba(l.membrane, 0.8 * alpha);
-    ctx.lineWidth = Math.max(0.6, r * 0.02);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(fl * 0.55, -fl * 0.32, fl, 0);
-    ctx.quadraticCurveTo(fl * 0.55, fl * 0.18, 0, 0);
-    ctx.fill(); ctx.stroke();
+    if (l.lobeFins && pi < 2) {
+      // fleshy lobe: a muscular stalk with a fringe — the first limbs
+      ctx.fillStyle = rgba(l.inner, 0.85 * alpha);
+      ctx.strokeStyle = rgba(l.membrane, 0.85 * alpha);
+      ctx.lineWidth = Math.max(0.6, r * 0.02);
+      ctx.beginPath();
+      ctx.ellipse(fl * 0.42, 0, fl * 0.45, fl * 0.16, 0, 0, TAU);
+      ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = rgba('#ffffff', 0.35 * alpha);
+      ctx.beginPath(); ctx.moveTo(fl * 0.05, 0); ctx.lineTo(fl * 0.55, 0); ctx.stroke();
+      ctx.fillStyle = rgba(l.membrane, 0.4 * alpha);
+      ctx.beginPath(); ctx.moveTo(fl * 0.75, -fl * 0.12); ctx.quadraticCurveTo(fl * 1.15, 0, fl * 0.75, fl * 0.12); ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillStyle = rgba(l.membrane, 0.42 * alpha);
+      ctx.strokeStyle = rgba(l.membrane, 0.8 * alpha);
+      ctx.lineWidth = Math.max(0.6, r * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(fl * 0.55, -fl * 0.32, fl, 0);
+      ctx.quadraticCurveTo(fl * 0.55, fl * 0.18, 0, 0);
+      ctx.fill(); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -826,6 +851,8 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.beginPath();
     for (let i = 0; i <= N; i++) { if (i === 0) ctx.moveTo(SX[i], SY[i]); else ctx.lineTo(SX[i], SY[i]); }
     ctx.stroke();
+  } else if (vert) {
+    drawVertebrateDetails(ctx, l, r, o, alpha, N, L);
   } else {
     ctx.strokeStyle = rgba(l.membrane, 0.28 * alpha);
     ctx.lineWidth = Math.max(0.5, r * 0.018);
@@ -1061,4 +1088,110 @@ function drawNautilus(ctx: CanvasRenderingContext2D, l: Look, r: number, o: Draw
   ctx.beginPath(); ctx.ellipse(r * 0.5, 0, r * 0.18, r * 0.36, 0, 0, TAU); ctx.fill();
   ctx.fillStyle = rgba('#05080f', 0.9 * alpha);
   ctx.beginPath(); ctx.arc(r * 0.52, -r * 0.18, r * 0.06, 0, TAU); ctx.fill();
+}
+
+/** Fish-like details: scales, gill slits, dorsal ridge, jaws, head armour, electroreceptors. */
+function drawVertebrateDetails(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawOpts, alpha: number, N: number, L: number) {
+  const t = o.t;
+  // mottled countershading
+  if (l.mottled) {
+    ctx.fillStyle = rgba('#02060c', 0.22 * alpha);
+    for (let k = 0; k < 14; k++) {
+      const i = 1 + (k * 5) % (N - 1);
+      const off = (((k * 0.618) % 1) - 0.5) * 1.3;
+      ctx.beginPath(); ctx.arc(SX[i] + SNX[i] * SW[i] * off, SY[i] + SNY[i] * SW[i] * off, r * (0.05 + (k % 3) * 0.02), 0, TAU); ctx.fill();
+    }
+  }
+  // scales
+  if (l.scales) {
+    ctx.strokeStyle = rgba(l.membrane, 0.22 * alpha);
+    ctx.lineWidth = Math.max(0.4, r * 0.012);
+    ctx.beginPath();
+    for (let i = 2; i < N - 1; i++) {
+      for (let q = -2; q <= 2; q++) {
+        const f = q / 2.6;
+        const cx = SX[i] + SNX[i] * SW[i] * f, cy = SY[i] + SNY[i] * SW[i] * f;
+        const sr = SW[i] * 0.22;
+        ctx.moveTo(cx + sr, cy);
+        ctx.arc(cx, cy, sr, 0, Math.PI, false);
+      }
+    }
+    ctx.stroke();
+  }
+  // dorsal fin ridge along the spine
+  const d0 = Math.round(N * 0.3), d1 = Math.round(N * 0.62);
+  ctx.strokeStyle = rgba(l.membrane, 0.45 * alpha);
+  ctx.lineWidth = Math.max(0.8, r * 0.07);
+  ctx.beginPath();
+  for (let i = d0; i <= d1; i++) { if (i === d0) ctx.moveTo(SX[i], SY[i]); else ctx.lineTo(SX[i], SY[i]); }
+  ctx.stroke();
+  ctx.strokeStyle = rgba('#ffffff', 0.25 * alpha);
+  ctx.lineWidth = Math.max(0.5, r * 0.02);
+  ctx.stroke();
+  // gill slits
+  const gi = Math.max(1, Math.round(N * 0.2));
+  ctx.strokeStyle = rgba('#02060c', 0.45 * alpha);
+  ctx.lineWidth = Math.max(0.6, r * 0.025);
+  ctx.beginPath();
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < (l.jaw && l.jaw >= 2 ? 5 : 3); k++) {
+      const x = SX[gi] - k * r * 0.07;
+      const w = SW[gi] * 0.9;
+      ctx.moveTo(x + r * 0.03, SY[gi] + side * w * 0.5);
+      ctx.quadraticCurveTo(x - r * 0.02, SY[gi] + side * w * 0.75, x + r * 0.02, SY[gi] + side * w * 0.95);
+    }
+  }
+  ctx.stroke();
+  // head armour (placoderm shield)
+  if (l.headArmor) {
+    const hi = Math.round(N * 0.32);
+    ctx.fillStyle = rgba(l.membrane, 0.25 * alpha);
+    ctx.strokeStyle = rgba(l.membrane, 0.75 * alpha);
+    ctx.lineWidth = Math.max(0.8, r * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(L / 2 + r * 0.05, 0);
+    for (let i = 0; i <= hi; i++) ctx.lineTo(SX[i] + SNX[i] * SW[i] * 1.02, SY[i] + SNY[i] * SW[i] * 1.02);
+    ctx.quadraticCurveTo(SX[hi] - r * 0.15, SY[hi], SX[hi] - SNX[hi] * SW[hi] * 1.02, SY[hi] - SNY[hi] * SW[hi] * 1.02);
+    for (let i = hi; i >= 0; i--) ctx.lineTo(SX[i] - SNX[i] * SW[i] * 1.02, SY[i] - SNY[i] * SW[i] * 1.02);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(SX[1], SY[1]); ctx.lineTo(SX[hi], SY[hi]);
+    const mid = Math.round(hi / 2);
+    ctx.moveTo(SX[mid] + SNX[mid] * SW[mid], SY[mid] + SNY[mid] * SW[mid]);
+    ctx.lineTo(SX[mid] - SNX[mid] * SW[mid], SY[mid] - SNY[mid] * SW[mid]);
+    ctx.stroke();
+  }
+  // jaws
+  if (l.jaw) {
+    const open = 0.15 + 0.12 * Math.max(0, Math.sin(t * 1.7 + o.seed)) + (o.engulf || 0) * 0.3;
+    const mx = L / 2 - r * 0.02, mw = SW[1] * 0.8;
+    ctx.strokeStyle = rgba('#02060c', 0.6 * alpha);
+    ctx.lineWidth = Math.max(0.8, r * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(mx - r * 0.25, -mw);
+    ctx.quadraticCurveTo(mx + r * 0.05, -mw * open, mx + r * 0.08, 0);
+    ctx.quadraticCurveTo(mx + r * 0.05, mw * open, mx - r * 0.25, mw);
+    ctx.stroke();
+    if (l.jaw >= 2) {
+      ctx.fillStyle = rgba('#fff8ec', 0.9 * alpha);
+      for (let k = 0; k < 5; k++) {
+        for (const side of [-1, 1]) {
+          const u = 0.15 + k * 0.17;
+          const px = mx + r * 0.05 - u * r * 0.3, py = side * mw * (open + u * (1 - open)) * 0.95;
+          ctx.beginPath(); ctx.moveTo(px - r * 0.025, py); ctx.lineTo(px + r * 0.025, py); ctx.lineTo(px, py - side * r * 0.05); ctx.closePath(); ctx.fill();
+        }
+      }
+    }
+  }
+  // electroreceptor pores on the snout
+  if (l.electro) {
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 7 - 0.5) * 1.6;
+      drawGlow(ctx, '#7ab8ff', L / 2 - r * 0.2 + Math.cos(a) * r * 0.18, Math.sin(a) * SW[1] * 0.7, r * 0.07, (0.4 + 0.4 * pulse) * alpha);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
 }

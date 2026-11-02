@@ -49,6 +49,12 @@ export interface Stats {
   hardenMult: number;
   /** turn responsiveness multiplier */
   turn: number;
+  /** largest prey (relative size) a Strike can seize */
+  strikeRatio: number;
+  /** strike damage multiplier against things too big to swallow */
+  strikeDamage: number;
+  /** 0..1: how well you vanish when holding still */
+  stealth: number;
   abilities: AbilityId[];
 }
 
@@ -88,6 +94,9 @@ export const baseStats = (): Stats => ({
   nutrientMult: 1,
   hardenMult: 1,
   turn: 1,
+  strikeRatio: 1.35,
+  strikeDamage: 1,
+  stealth: 0,
   abilities: [],
 });
 
@@ -395,6 +404,93 @@ export const TRAITS: TraitDef[] = [
     apply: (s) => { s.photo *= 1.8; s.maxEnergy *= 1.25; s.speed *= 0.9; },
     look: (l) => { l.fronds = (l.fronds || 0) + 3; },
   }),
+  // ───────────── ERA V ─────────────
+  T({
+    id: 'jaws', name: 'Hinged Jaws', icon: '⋀', category: 'Feeding', era: 5,
+    bio: 'Gill arches fold forward into a biting jaw — the single most important invention in vertebrate history.',
+    levels: [
+      { name: 'Hinged Jaws', cost: 230, pros: ['STRIKE ability (or a stronger one): seize prey up to 50% larger', 'Strikes deal double damage to big animals', '+25% food energy'], cons: ['+8% metabolism'] },
+      { name: 'Serrated Teeth', cost: 320, pros: ['Strike seizes prey up to 65% larger', 'Strikes deal triple damage'], cons: ['+6% metabolism'] },
+    ],
+    archetype: { predator: 2.5 },
+    ability: 'strike',
+    apply: (s, lv) => {
+      if (!s.abilities.includes('strike')) s.abilities.push('strike');
+      s.strikeRatio = Math.max(s.strikeRatio, lv >= 2 ? 1.65 : 1.5); s.strikeDamage *= lv >= 2 ? 3 : 2; s.digestion *= 1.25; s.metabolism *= 1.08;
+      if (lv >= 2) s.metabolism *= 1.06;
+    },
+    look: (l, lv) => { l.jaw = Math.max(l.jaw || 0, lv >= 2 ? 2 : 1); },
+  }),
+  T({
+    id: 'electro', name: 'Electroreception', icon: 'ϟ', category: 'Senses', era: 5,
+    bio: 'Jelly-filled pores on the snout feel the faint electric hum of every living muscle nearby.',
+    levels: [
+      { name: 'Electroreception', cost: 220, pros: ['See clearly in total darkness', 'Sense hunters and rare life from very far away', 'Predators telegraph strikes 40% longer'], cons: ['+7% metabolism'] },
+    ],
+    archetype: { predator: 1.5, opportunist: 1 },
+    apply: (s) => { s.vision += 1.2; s.sense = Math.max(s.sense, 60); s.reaction *= 1.4; s.metabolism *= 1.07; },
+    look: (l) => { l.electro = true; },
+  }),
+  T({
+    id: 'bladder', name: 'Swim Bladder', icon: '◌', category: 'Metabolism', era: 5,
+    bio: 'A gas-filled sac lets you hang weightless in the water instead of fighting to stay level.',
+    levels: [
+      { name: 'Swim Bladder', cost: 210, pros: ['−25% metabolism', '+10% top speed'], cons: ['Burst costs +30%'] },
+    ],
+    archetype: { opportunist: 1.5, phototroph: 1.5 },
+    apply: (s) => { s.metabolism *= 0.75; s.speed *= 1.1; s.burstCost *= 1.3; },
+    look: (l) => { l.vacuole = true; },
+  }),
+  T({
+    id: 'scales', name: 'Bony Scales', icon: '⛆', category: 'Defense', era: 5,
+    bio: 'Overlapping plates of enamel-coated bone — light, flexible armour.',
+    levels: [
+      { name: 'Bony Scales', cost: 220, pros: ['−40% damage taken', 'Attackers take damage when they bite you'], cons: ['−6% top speed'] },
+    ],
+    archetype: { defender: 2.5 },
+    apply: (s) => { s.damageTaken *= 0.6; s.contactDamage = Math.max(s.contactDamage, 30); s.speed *= 0.94; },
+    look: (l) => { l.scales = true; },
+  }),
+  T({
+    id: 'lobes', name: 'Lobe Fins', icon: '⫚', category: 'Locomotion', era: 5,
+    bio: 'Fins with bones and muscle inside them. You can push off the bottom, brace and turn on the spot.',
+    levels: [
+      { name: 'Lobe Fins', cost: 230, pros: ['Very sharp turning and acceleration', 'Ignores thickets and currents', '+20% integrity'], cons: ['−8% top speed'] },
+    ],
+    archetype: { opportunist: 2, defender: 1 },
+    apply: (s) => { s.turn *= 1.8; s.accel *= 1.6; s.thicketImmune = true; s.currentResist = 1; s.maxHp *= 1.2; s.speed *= 0.92; },
+    look: (l) => { l.lobeFins = true; l.fins = Math.max(l.fins || 0, 4); },
+  }),
+  T({
+    id: 'shoal', name: 'Shoaling Instinct', icon: '⋰', category: 'Colonial', era: 5,
+    bio: 'Kin stay close and move as one. There is safety in numbers — and more eyes for food.',
+    levels: [
+      { name: 'Shoaling Instinct', cost: 240, pros: ['+3 shoal-mates swim with you', 'Each takes a bite for you, then rejoins', 'They gather food'], cons: ['+10% metabolism'] },
+    ],
+    archetype: { defender: 1.5, opportunist: 1 },
+    apply: (s) => { s.satellites += 3; s.metabolism *= 1.1; },
+    look: () => {},
+  }),
+  T({
+    id: 'muscle', name: 'Fast-Twitch Muscle', icon: '⟿', category: 'Locomotion', era: 5,
+    bio: 'White muscle fibres burn fuel without oxygen for explosive bursts of speed.',
+    levels: [
+      { name: 'Fast-Twitch Muscle', cost: 220, pros: ['Burst is 60% stronger and 40% cheaper', '+8% top speed'], cons: ['+10% metabolism'] },
+    ],
+    archetype: { predator: 1.5, opportunist: 0.5 },
+    apply: (s) => { s.burstPower *= 1.6; s.burstCost *= 0.6; s.speed *= 1.08; s.metabolism *= 1.1; },
+    look: (l) => { l.tailFin = (l.tailFin || 0) + 0.5; },
+  }),
+  T({
+    id: 'camo', name: 'Countershading', icon: '◑', category: 'Defense', era: 5,
+    bio: 'Dark above, pale below, broken up by blotches. Hold still and you simply disappear.',
+    levels: [
+      { name: 'Countershading', cost: 210, pros: ['Hold still to vanish from predators', 'Predators spot you from 40% closer'], cons: ['Halves the pull of a Bioluminescent Lure'] },
+    ],
+    archetype: { defender: 1.5, phototroph: 1 },
+    apply: (s) => { s.stealth = 1; s.detectability *= 0.6; s.lure *= 0.5; },
+    look: (l) => { l.mottled = true; },
+  }),
 ];
 
 export const TRAIT_BY_ID: Record<string, TraitDef> = Object.fromEntries(TRAITS.map((t) => [t.id, t]));
@@ -415,18 +511,19 @@ export function deriveStats(traits: TraitLevels, eraIndex = 1): Stats {
   return s;
 }
 
-export function archetypeWeights(traits: TraitLevels): Record<Archetype, number> {
+export function archetypeWeights(traits: TraitLevels, recent?: TraitLevels): Record<Archetype, number> {
   const w: Record<Archetype, number> = { predator: 0, defender: 0, opportunist: 0, phototroph: 0 };
   for (const t of TRAITS) {
-    const lv = traits[t.id] || 0;
+    // choices made in the current era count extra: your lineage is shaped by what you did lately
+    const lv = (traits[t.id] || 0) + (recent?.[t.id] || 0) * 1.5;
     if (!lv) continue;
     for (const k in t.archetype) w[k as Archetype] += (t.archetype[k as Archetype] || 0) * lv;
   }
   return w;
 }
 
-export function dominantArchetype(traits: TraitLevels): Archetype {
-  const w = archetypeWeights(traits);
+export function dominantArchetype(traits: TraitLevels, recent?: TraitLevels): Archetype {
+  const w = archetypeWeights(traits, recent);
   let best: Archetype = 'opportunist', bv = -1;
   for (const k of ['predator', 'defender', 'phototroph', 'opportunist'] as Archetype[]) {
     if (w[k] > bv) { bv = w[k]; best = k; }

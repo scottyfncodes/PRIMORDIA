@@ -351,7 +351,7 @@ export class UI {
     const form = g.pendingLeapForm!;
     const next = ERAS[p.eraIndex];
     const el = h('div', 'leap-screen');
-    const arch = ARCHETYPE_INFO[p.archetype];
+    const arch = ARCHETYPE_INFO[form.archetype ?? p.archetype];
     el.innerHTML = `
       <div class="leap-inner">
         <div class="ev-k">Evolutionary leap</div>

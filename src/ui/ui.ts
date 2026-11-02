@@ -8,6 +8,8 @@ import { ZONES, type ZoneId } from '../sim/environment';
 import { PreviewCanvas, staticPreview } from './preview';
 import type { Audio } from '../engine/audio';
 import type { Input } from '../engine/input';
+import type { RunSnapshot } from '../game/save';
+import { FORM_BY_ID } from '../game/eras';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const h = (tag: string, cls = '', html = '') => {
@@ -23,8 +25,11 @@ const CATEGORY_LABEL: Record<string, string> = { harmless: 'Harmless', prey: 'Pr
 
 export interface UiCallbacks {
   onStart: () => void;
+  onContinue: () => void;
+  savedRun: () => RunSnapshot | null;
   onRestart: () => void;
   onQuitToTitle: () => void;
+  onSaveAndExit: () => void;
 }
 
 export class UI {
@@ -215,13 +220,17 @@ export class UI {
     this.previews = [];
     this.showHud(false);
     const d = this.game.progress.data;
+    const saved = this.cb.savedRun();
+    const savedForm = saved ? (FORM_BY_ID[saved.player.formId]?.name ?? 'Your lineage') : '';
     const el = h('div', 'title-screen');
     el.innerHTML = `
       <div class="title-wrap">
         <div class="logo-cell"></div>
         <h1 class="logo">PRIMORDIA</h1>
         <p class="tagline">Begin as a single cell. Become whatever survives.</p>
-        <button class="btn primary" id="t-start">${d.records.runs ? 'Begin a New Life' : 'Begin Life'}</button>
+        ${saved ? `<div class="continue-card"><div class="cc-art"></div><div class="cc-body"><div class="ev-k">Saved life</div><div class="cc-name">${savedForm}</div><div class="cc-meta">Era ${ERAS[saved.player.eraIndex - 1].numeral} · ${fmtTime(saved.run.time)} alive · ${Object.values(saved.player.traits).reduce((a, b) => a + b, 0)} mutations</div></div></div>
+        <button class="btn primary" id="t-continue">Continue</button>` : ''}
+        <button class="btn ${saved ? 'ghost' : 'primary'}" id="t-start">${d.records.runs ? 'Begin a New Life' : 'Begin Life'}</button>
         <div class="row">
           <button class="btn ghost" id="t-codex">Codex</button>
           <button class="btn ghost" id="t-settings">Settings</button>
@@ -232,7 +241,19 @@ export class UI {
     const pc = new PreviewCanvas(buildPlayerLook({}, 1, formFor(1, 'opportunist')), 'logo-canvas', 0.3);
     el.querySelector('.logo-cell')!.appendChild(pc.canvas);
     this.previews.push(pc);
-    el.querySelector('#t-start')!.addEventListener('click', () => { this.audio.unlock(); this.audio.ui(); this.cb.onStart(); });
+    if (saved) {
+      const f = FORM_BY_ID[saved.player.formId] ?? formFor(saved.player.eraIndex, 'opportunist');
+      const cc = new PreviewCanvas(buildPlayerLook(saved.player.traits, saved.player.eraIndex, f), 'cc-canvas', 0.3);
+      el.querySelector('.cc-art')!.appendChild(cc.canvas);
+      this.previews.push(cc);
+      el.querySelector('#t-continue')!.addEventListener('click', () => { this.audio.unlock(); this.audio.ui(); this.cb.onContinue(); });
+    }
+    let armed = false;
+    el.querySelector('#t-start')!.addEventListener('click', (ev) => {
+      this.audio.unlock(); this.audio.ui();
+      if (saved && !armed) { armed = true; (ev.currentTarget as HTMLElement).textContent = 'Tap again — your saved life will end'; return; }
+      this.cb.onStart();
+    });
     el.querySelector('#t-codex')!.addEventListener('click', () => { this.audio.unlock(); this.audio.ui(); this.showCodex(() => this.showTitle()); });
     el.querySelector('#t-settings')!.addEventListener('click', () => { this.audio.unlock(); this.audio.ui(); this.showSettings(() => this.showTitle()); });
   }
@@ -245,6 +266,7 @@ export class UI {
       <div class="panel">
         <h2>Settings</h2>
         <div class="setting"><div><b>Sound</b><small>Ambience and feedback</small></div><button class="toggle ${s.sound ? 'on' : ''}" id="st-sound"><i></i></button></div>
+        <div class="setting"><div><b>Music</b><small>A score that evolves with each era</small></div><button class="toggle ${s.music ? 'on' : ''}" id="st-music"><i></i></button></div>
         <div class="setting"><div><b>Controls</b><small>Joystick: drag on the left side. Follow: touch anywhere and the cell swims toward your finger.</small></div>
           <div class="seg" id="st-ctrl"><button data-v="joystick" class="${s.controls === 'joystick' ? 'on' : ''}">Joystick</button><button data-v="drag" class="${s.controls === 'drag' ? 'on' : ''}">Follow</button></div></div>
         <div class="setting"><div><b>Keyboard</b><small>WASD / arrows to swim · Space to burst · Q E R F T G abilities · V evolve · Esc pause</small></div></div>
@@ -255,6 +277,10 @@ export class UI {
     el.querySelector('#st-sound')!.addEventListener('click', (ev) => {
       s.sound = !s.sound; (ev.currentTarget as HTMLElement).classList.toggle('on', s.sound);
       this.audio.setEnabled(s.sound); this.game.progress.flush();
+    });
+    el.querySelector('#st-music')!.addEventListener('click', (ev) => {
+      s.music = !s.music; (ev.currentTarget as HTMLElement).classList.toggle('on', s.music);
+      this.audio.setMusic(s.music); this.game.progress.flush();
     });
     el.querySelectorAll<HTMLButtonElement>('#st-ctrl button').forEach((b) => b.addEventListener('click', () => {
       s.controls = b.dataset.v as 'joystick' | 'drag';
@@ -289,6 +315,7 @@ export class UI {
           <button class="btn ghost" id="p-codex">Codex</button>
           <button class="btn ghost" id="p-settings">Settings</button>
         </div>
+        <button class="btn ghost" id="p-save">Save &amp; exit to title</button>
         <button class="btn ghost small" id="p-quit">Abandon this life</button>
       </div>`;
     this.open('pause', el);
@@ -298,6 +325,7 @@ export class UI {
     el.querySelector('#p-resume')!.addEventListener('click', () => { this.audio.ui(); this.togglePause(); });
     el.querySelector('#p-codex')!.addEventListener('click', () => { this.audio.ui(); this.showCodex(() => this.showPause()); });
     el.querySelector('#p-settings')!.addEventListener('click', () => { this.audio.ui(); this.showSettings(() => this.showPause()); });
+    el.querySelector('#p-save')!.addEventListener('click', () => { this.audio.ui(); this.cb.onSaveAndExit(); });
     let armed = false;
     el.querySelector('#p-quit')!.addEventListener('click', (ev) => {
       const b = ev.currentTarget as HTMLButtonElement;

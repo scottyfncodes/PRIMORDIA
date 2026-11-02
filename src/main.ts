@@ -4,6 +4,7 @@ import { Renderer } from './render/renderer';
 import { Input } from './engine/input';
 import { Audio } from './engine/audio';
 import { UI } from './ui/ui';
+import { RunStore, snapshot } from './game/save';
 import { PLAYER_SPAWN } from './sim/environment';
 import { TRAIT_BY_ID } from './game/traits';
 
@@ -14,11 +15,16 @@ const audio = new Audio();
 const input = new Input(document.getElementById('touch')!, document.getElementById('joy')!, document.getElementById('joy-knob')!);
 input.mode = game.progress.data.settings.controls;
 audio.enabled = game.progress.data.settings.sound;
+audio.musicOn = game.progress.data.settings.music;
 
+const runStore = RunStore.fromWindow();
 const ui = new UI(game, audio, input, {
   onStart: () => startRun(),
   onRestart: () => startRun(),
-  onQuitToTitle: () => toTitle(),
+  onContinue: () => continueRun(),
+  savedRun: () => runStore.load(),
+  onQuitToTitle: () => toTitle(game.state === 'paused'),
+  onSaveAndExit: () => toTitle(false),
 });
 
 let lastState = game.state;
@@ -26,10 +32,39 @@ const hudEl = document.getElementById('hud')!;
 let deathTimer = -1;
 const inputState: InputState = { mx: 0, my: 0, burst: false, abilities: {} };
 
+function beginPlay() {
+  renderer.snapCamera(game);
+  input.reset();
+  input.enabled = true;
+  ui.showHud(true);
+  lastState = 'playing';
+  deathTimer = -1;
+  autosaveT = 2;
+  audio.setEra(game.player.eraIndex);
+}
+
+function continueRun() {
+  const s = runStore.load();
+  if (!s) return startRun();
+  audio.unlock();
+  ui.closeScreen();
+  renderer.fx.clear();
+  game.resumeRun(s);
+  beginPlay();
+  renderer.cam.zoom *= 0.7;
+}
+
+/** Save the current life (only while it is in progress). */
+function autosave() {
+  if (game.player.alive && ['playing', 'paused', 'evolve', 'leap'].includes(game.state)) runStore.save(snapshot(game));
+}
+let autosaveT = 4;
+
 function startRun() {
   audio.unlock();
   ui.closeScreen();
   renderer.fx.clear();
+  runStore.clear();
   game.newRun();
   renderer.snapCamera(game);
   renderer.cam.zoom *= 0.6; // gentle zoom-in reveal
@@ -38,13 +73,17 @@ function startRun() {
   ui.showHud(true);
   lastState = 'playing';
   deathTimer = -1;
+  autosaveT = 4;
+  audio.setEra(1);
 }
 
-function toTitle() {
+function toTitle(abandon = false) {
+  if (abandon) runStore.clear(); else autosave();
   game.progress.flush();
   input.enabled = false;
   input.reset();
   game.startAttract();
+  audio.setEra(1);
   ui.showTitle();
   lastState = 'title';
 }
@@ -119,6 +158,8 @@ function handleEvents() {
         fx.burst(p.x, p.y, 70, p.look.glow, p.r * 9, p.r * 0.3);
         fx.ring(p.x, p.y, p.r, p.r * 9, '#ffffff', 1.4);
         renderer.cam.x = p.x; renderer.cam.y = p.y; // the sea may have been rescaled
+        audio.setEra(e.era);
+        autosave();
         renderer.cam.zoom = renderer.bodyZoom(game) * 1.9; // pull back to reveal the bigger world
         audio.leap();
         break;
@@ -206,7 +247,7 @@ function frame(now: number) {
   if (game.state !== lastState) {
     if (game.state === 'evolve') { ui.showEvolve(); input.reset(); }
     else if (game.state === 'leap') { ui.showLeap(); input.reset(); }
-    else if (game.state === 'dead') { deathTimer = 1.6; input.enabled = false; input.reset(); }
+    else if (game.state === 'dead') { deathTimer = 1.6; input.enabled = false; input.reset(); runStore.clear(); }
     else if (game.state === 'playing' && (lastState === 'evolve' || lastState === 'leap')) { input.reset(); }
     lastState = game.state;
   }
@@ -225,16 +266,20 @@ function frame(now: number) {
   if (game.state !== 'title') ui.updateHud(dt);
   hudEl.classList.toggle('dim', game.state !== 'playing');
   ui.tick(now / 1000);
-  audio.update(dt, game.state === 'playing' ? game.danger : 0, game.env.light(renderer.cam.x, renderer.cam.y), renderer.cam.y / game.env.h, game.state === 'playing');
+  audio.update(dt, game.state === 'playing' ? game.danger : 0, game.env.light(renderer.cam.x, renderer.cam.y), renderer.cam.y / game.env.h, game.state === 'playing', game.state !== 'title' && game.player.onLand);
+  if (game.state === 'playing') {
+    autosaveT -= dt;
+    if (autosaveT <= 0) { autosaveT = 5; autosave(); }
+  }
 }
 
 window.addEventListener('resize', () => renderer.resize());
 window.addEventListener('orientationchange', () => setTimeout(() => renderer.resize(), 200));
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && game.state === 'playing') { ui.togglePause(); }
-  if (document.hidden) game.progress.flush();
+  if (document.hidden) { autosave(); game.progress.flush(); }
 });
-window.addEventListener('pagehide', () => game.progress.flush());
+window.addEventListener('pagehide', () => { autosave(); game.progress.flush(); });
 
 // expose for automated testing / debugging
 (window as unknown as { __primordia: unknown }).__primordia = { game, renderer, ui, input, startRun };

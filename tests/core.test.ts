@@ -276,3 +276,63 @@ describe('era VI', () => {
     expect(g.state).toBe('dead');
   });
 });
+
+import { isValid, RunStore, snapshot } from '../src/game/save';
+
+describe('save & resume', () => {
+  const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) }; };
+  it('a saved life resumes with its body, era, DNA and run stats intact', () => {
+    const g = new Game();
+    g.newRun();
+    const p = g.player;
+    ['flagellum', 'flagellum', 'membrane', 'sensory'].forEach((t) => p.addTrait(t));
+    for (let e = 2; e <= 4; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, 'predator'); g.confirmLeap(); }
+    p.addTrait('claws');
+    p.dna = 123; p.growth = 777; p.r = 150; g.run.time = 1234; g.run.eaten = 99; g.run.zones.add('abyss');
+    const store = new RunStore(mem());
+    store.save(snapshot(g));
+    const s = store.load();
+    expect(s).not.toBeNull();
+    const h = new Game();
+    h.resumeRun(s!);
+    const q = h.player;
+    expect(h.state).toBe('playing');
+    expect(q.eraIndex).toBe(4);
+    expect(q.form.id).toBe('e4-predator');
+    expect(q.traits).toEqual(p.traits);
+    expect(q.stats.abilities).toContain('strike');
+    expect(q.look.body).toBe('swimmer');
+    expect(q.dna).toBe(123);
+    expect(q.growth).toBe(777);
+    expect(q.r).toBe(150);
+    expect(h.env.scale).toBe(4);
+    expect(h.run.time).toBe(1234);
+    expect(h.run.eaten).toBe(99);
+    expect(h.run.zones.has('abyss')).toBe(true);
+    expect(h.world.countAlive()).toBeGreaterThan(10);
+    for (let i = 0; i < 120; i++) h.update(1 / 60, { mx: 0.5, my: 0.2, burst: false, abilities: {} });
+    expect(Number.isFinite(q.x)).toBe(true);
+  });
+  it('an Era VI save brings the coastline back', () => {
+    const g = new Game();
+    g.newRun();
+    for (let e = 2; e <= 6; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, 'opportunist'); g.confirmLeap(); }
+    const h = new Game();
+    h.resumeRun(JSON.parse(JSON.stringify(snapshot(g))));
+    expect(h.env.land).toBe(true);
+    expect(h.env.scale).toBe(14);
+  });
+  it('rejects corrupt or tampered saves', () => {
+    expect(isValid(null)).toBe(false);
+    expect(isValid({ v: 1 })).toBe(false);
+    const g = new Game(); g.newRun();
+    const s = JSON.parse(JSON.stringify(snapshot(g)));
+    expect(isValid(s)).toBe(true);
+    expect(isValid({ ...s, player: { ...s.player, traits: { flagellum: 9 } } })).toBe(false);
+    expect(isValid({ ...s, player: { ...s.player, traits: { notATrait: 1 } } })).toBe(false);
+    expect(isValid({ ...s, player: { ...s.player, eraIndex: 9 } })).toBe(false);
+    expect(isValid({ ...s, player: { ...s.player, x: NaN } })).toBe(false);
+    const kv = mem(); kv.setItem('primordia.run.v1', '{broken');
+    expect(new RunStore(kv).load()).toBeNull();
+  });
+});

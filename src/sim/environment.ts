@@ -7,7 +7,7 @@ import { clamp, makeRng, smoothstep, TAU } from '../engine/math';
 export const WORLD_W = 6000;
 export const WORLD_H = 6000;
 
-export type ZoneId = 'shallows' | 'drift' | 'thicket' | 'vents' | 'abyss';
+export type ZoneId = 'shallows' | 'drift' | 'thicket' | 'vents' | 'abyss' | 'land';
 
 export interface ZoneDef {
   id: ZoneId;
@@ -29,6 +29,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   thicket: { id: 'thicket', name: 'Biofilm Thicket', blurb: 'Tangled mats of ancient film. Dense, slow, full of hiding prey.', deep: '#082a26', near: '#1c5a43', light: 0.45, current: 0.15, nutrients: 1.25, darkness: 0.1 },
   vents: { id: 'vents', name: 'Thermal Vents', blurb: 'Mineral heat boils from the floor. Rich food, scalding danger.', deep: '#1c0d14', near: '#5a2a1e', light: 0.25, current: 0.35, nutrients: 1.6, darkness: 0.3 },
   abyss: { id: 'abyss', name: 'The Abyssal Dark', blurb: 'Lightless and quiet. Rare luminous life drifts here, and so do hunters.', deep: '#02040c', near: '#0b1430', light: 0.04, current: 0.25, nutrients: 0.6, darkness: 0.82 },
+  land: { id: 'land', name: 'The First Shores', blurb: 'Bare rock and moss under an open sky. Nothing with a backbone has ever walked here.', deep: '#2a3a24', near: '#4a6a3a', light: 1, current: 0, nutrients: 1.1, darkness: 0 },
 };
 
 const SEEDS: { x: number; y: number; z: ZoneId }[] = [
@@ -55,6 +56,8 @@ export class Environment {
   time = 0;
   /** World scale: the sea grows as the player's lineage grows (Era III+). */
   scale = 1;
+  /** Era VI: the sea has a shoreline and dry land to the north. */
+  land = false;
   rocks: Rock[] = [];
   vents: Vent[] = [];
   strands: Strand[] = [];
@@ -120,8 +123,30 @@ export class Environment {
     return best.z;
   }
 
+  /** Coastline y (world units) at world x: land lies north of it. */
+  coastY(x: number): number {
+    const bx = x / this.scale;
+    return (1450 + Math.sin(bx * 0.0011 + 0.6) * 320 + Math.sin(bx * 0.0031 + 2) * 130 + Math.sin(bx * 0.007) * 45) * this.scale;
+  }
+  /** Drift Isle: an island off the coast. Returns [x, y, radius] in world units. */
+  get island(): [number, number, number] { return [4500 * this.scale, 2600 * this.scale, 520 * this.scale]; }
+  islandRadius(angle: number): number {
+    return this.island[2] * (1 + 0.12 * Math.sin(angle * 3 + 1) + 0.07 * Math.sin(angle * 7));
+  }
+  isLand(x: number, y: number): boolean {
+    if (!this.land) return false;
+    if (y < this.coastY(x)) return true;
+    const [ix, iy] = this.island;
+    const dx = x - ix, dy = y - iy;
+    const d2 = dx * dx + dy * dy;
+    const rmax = this.island[2] * 1.2;
+    if (d2 > rmax * rmax) return false;
+    return Math.sqrt(d2) < this.islandRadius(Math.atan2(dy, dx));
+  }
+
   /** Voronoi zone lookup. */
   zoneAt(x: number, y: number): ZoneId {
+    if (this.land && this.isLand(x, y)) return 'land';
     return this.baseZoneAt(x / this.scale, y / this.scale);
   }
 
@@ -145,6 +170,7 @@ export class Environment {
 
   /** Light availability 0..1 (depth gradient × zone × drifting light shafts). */
   light(x: number, y: number): number {
+    if (this.land && this.isLand(x, y)) return 1;
     x /= this.scale; y /= this.scale;
     const depth = clamp(1.15 - y / (WORLD_H * 0.62), 0.03, 1);
     const w = this.baseWeights(x, y, this._zw);
@@ -157,6 +183,7 @@ export class Environment {
 
   /** Water current vector at a point (units / s). */
   current(x: number, y: number, out: { x: number; y: number }) {
+    if (this.land && this.isLand(x, y)) { out.x = 0; out.y = 0; return out; }
     x /= this.scale; y /= this.scale;
     const t = this.time;
     const w = this.baseWeights(x, y, this._zw);
@@ -182,11 +209,13 @@ export class Environment {
 
   /** Thicket density 0..1 (slows non-ciliated movement). */
   density(x: number, y: number): number {
+    if (this.land && this.isLand(x, y)) return 0;
     const w = this.zoneWeights(x, y, this._zw);
     return smoothstep(0.35, 0.8, w.thicket || 0);
   }
 
   darkness(x: number, y: number): number {
+    if (this.land && this.isLand(x, y)) return 0;
     const w = this.zoneWeights(x, y, this._zw);
     let d = 0;
     for (const k in w) d += w[k as ZoneId] * ZONES[k as ZoneId].darkness;

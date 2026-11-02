@@ -5,7 +5,7 @@ import type { Look } from '../render/look';
  * AND the organism Look (visuals) at every level, so evolution is always
  * both visible and functional.
  */
-export type AbilityId = 'engulf' | 'harden' | 'pulse' | 'toxin' | 'strike' | 'ink';
+export type AbilityId = 'engulf' | 'harden' | 'pulse' | 'toxin' | 'strike' | 'ink' | 'tongue';
 export type Archetype = 'predator' | 'defender' | 'opportunist' | 'phototroph';
 export type TraitCategory = 'Locomotion' | 'Feeding' | 'Defense' | 'Senses' | 'Metabolism' | 'Colonial';
 
@@ -55,6 +55,14 @@ export interface Stats {
   strikeDamage: number;
   /** 0..1: how well you vanish when holding still */
   stealth: number;
+  /** speed multiplier on dry land (fish flop, legs walk) */
+  landSpeed: number;
+  /** breath lost per second out of water (fraction of full) */
+  breathDrain: number;
+  /** extra lives from an amniotic clutch */
+  extraLives: number;
+  /** energy per second basking in sunlight on land */
+  bask: number;
   abilities: AbilityId[];
 }
 
@@ -97,6 +105,10 @@ export const baseStats = (): Stats => ({
   strikeRatio: 1.35,
   strikeDamage: 1,
   stealth: 0,
+  landSpeed: 0.42,
+  breathDrain: 0.1,
+  extraLives: 0,
+  bask: 0,
   abilities: [],
 });
 
@@ -491,6 +503,90 @@ export const TRAITS: TraitDef[] = [
     apply: (s) => { s.stealth = 1; s.detectability *= 0.6; s.lure *= 0.5; },
     look: (l) => { l.mottled = true; },
   }),
+  // ───────────── ERA VI ─────────────
+  T({
+    id: 'lungs', name: 'Primitive Lungs', icon: '♺', category: 'Metabolism', era: 6,
+    bio: 'A pouch off the gut, lined with blood vessels, gulps air. The sky becomes breathable.',
+    levels: [
+      { name: 'Primitive Lungs', cost: 300, pros: ['Hold your breath on land 4× longer'], cons: ['+5% metabolism'] },
+      { name: 'Full Lungs', cost: 380, pros: ['Breathe freely on land', '−10% metabolism'], cons: ['None — the sky is yours'] },
+    ],
+    archetype: { opportunist: 1.5, defender: 1 },
+    apply: (s, lv) => { s.breathDrain *= lv >= 2 ? 0 : 0.25; s.metabolism *= lv >= 2 ? 0.9 : 1.05; },
+    look: (l, lv) => { l.gills = false; l.airSac = true; if (lv >= 2) l.vacuole = true; },
+  }),
+  T({
+    id: 'limbs', name: 'Weight-Bearing Limbs', icon: '⩚', category: 'Locomotion', era: 6,
+    bio: 'Shoulder and hip girdles lock onto the spine. For the first time, a body can lift itself off the ground.',
+    levels: [
+      { name: 'Weight-Bearing Limbs', cost: 290, pros: ['Walk on land nearly as fast as you swim'], cons: ['−8% speed in water'] },
+      { name: 'Five Digits', cost: 360, pros: ['Faster and nimbler on land', 'Sharper turning everywhere'], cons: ['+5% metabolism'] },
+    ],
+    archetype: { opportunist: 2, predator: 0.5 },
+    apply: (s, lv) => { s.landSpeed = Math.max(s.landSpeed, lv >= 2 ? 1.05 : 0.85); s.speed *= 0.92; if (lv >= 2) { s.turn *= 1.4; s.metabolism *= 1.05; } },
+    look: (l, lv) => { l.legLen = (l.legLen || 0.6) + (lv >= 2 ? 0.2 : 0.1); },
+  }),
+  T({
+    id: 'skin', name: 'Keratin Skin', icon: '▦', category: 'Defense', era: 6,
+    bio: 'A tough, waxy outer skin that keeps water in and teeth out.',
+    levels: [
+      { name: 'Keratin Skin', cost: 280, pros: ['−40% breath lost on land', '−20% damage taken'], cons: ['−5% top speed'] },
+    ],
+    archetype: { defender: 2 },
+    apply: (s) => { s.breathDrain *= 0.6; s.damageTaken *= 0.8; s.speed *= 0.95; },
+    look: (l) => { l.scales = true; },
+  }),
+  T({
+    id: 'egg', name: 'Amniotic Egg', icon: '⬮', category: 'Colonial', era: 6,
+    bio: 'An egg with its own private pond inside. Your young no longer need the sea — and neither does your line.',
+    levels: [
+      { name: 'Amniotic Egg', cost: 360, pros: ['Once per life: when you die, your clutch hatches and your lineage carries on'], cons: ['The hatchling loses some growth'] },
+    ],
+    archetype: { defender: 1.5, phototroph: 1 },
+    apply: (s) => { s.extraLives = 1; },
+    look: (l) => { l.eggs = true; },
+  }),
+  T({
+    id: 'ears', name: 'Middle Ear', icon: '◖', category: 'Senses', era: 6,
+    bio: 'A gill bone becomes a tiny lever that carries sound through air. You hear footsteps before you see them.',
+    levels: [
+      { name: 'Middle Ear', cost: 290, pros: ['Sense hunters from very far away', 'Predators telegraph strikes 50% longer'], cons: ['+6% metabolism'] },
+    ],
+    archetype: { predator: 1, opportunist: 1, defender: 0.5 },
+    apply: (s) => { s.sense = Math.max(s.sense, 70); s.reaction *= 1.5; s.metabolism *= 1.06; },
+    look: (l) => { l.ears = true; },
+  }),
+  T({
+    id: 'tongue', name: 'Sticky Tongue', icon: '⟼', category: 'Feeding', era: 6,
+    bio: 'A long muscular tongue tipped with glue. Small prey is caught before it knows you are there.',
+    levels: [
+      { name: 'Sticky Tongue', cost: 300, pros: ['TONGUE ability: snatch small prey from a distance'], cons: ['+5% metabolism'] },
+    ],
+    archetype: { predator: 1.5, opportunist: 1 },
+    ability: 'tongue',
+    apply: (s) => { s.abilities.push('tongue'); s.metabolism *= 1.05; },
+    look: (l) => { l.tongue = true; },
+  }),
+  T({
+    id: 'tailpower', name: 'Muscular Tail', icon: '∿', category: 'Locomotion', era: 6,
+    bio: 'A thick tail that sculls through water and props you up on land.',
+    levels: [
+      { name: 'Muscular Tail', cost: 270, pros: ['+18% top speed in water', 'Burst 30% stronger'], cons: ['Slightly slower on land'] },
+    ],
+    archetype: { predator: 1.5, defender: 0.5 },
+    apply: (s) => { s.speed *= 1.18; s.burstPower *= 1.3; s.landSpeed *= 0.88; },
+    look: (l) => { l.tailFin = (l.tailFin || 0) + 0.6; },
+  }),
+  T({
+    id: 'bask', name: 'Sun Basking', icon: '☼', category: 'Metabolism', era: 6,
+    bio: 'Cold-blooded and proud of it: soak up the sun on warm rock and let the day feed you.',
+    levels: [
+      { name: 'Sun Basking', cost: 280, pros: ['Gain energy resting in sunlight on land', '−15% metabolism on land'], cons: ['Sluggish in the cold deep (+15% metabolism in darkness)'] },
+    ],
+    archetype: { phototroph: 3 },
+    apply: (s) => { s.bask = 9; s.darkPenalty *= 1.15; },
+    look: (l) => { l.mottled = true; },
+  }),
 ];
 
 export const TRAIT_BY_ID: Record<string, TraitDef> = Object.fromEntries(TRAITS.map((t) => [t.id, t]));
@@ -575,4 +671,5 @@ export const ABILITY_INFO: Record<AbilityId, { name: string; icon: string; coold
   toxin: { name: 'Toxin', icon: '☣', cooldown: 10, energy: 9 },
   strike: { name: 'Strike', icon: '❯', cooldown: 3.6, energy: 5 },
   ink: { name: 'Ink', icon: '●', cooldown: 11, energy: 6 },
+  tongue: { name: 'Tongue', icon: '⟼', cooldown: 2.2, energy: 3 },
 };

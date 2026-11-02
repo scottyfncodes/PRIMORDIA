@@ -33,6 +33,8 @@ export class UI {
   private energyFill = $('energy-fill');
   private hpFill = $('hp-fill');
   private growthFill = $('growth-fill');
+  private breathBar = $('breath-bar');
+  private breathFill = $('breath-fill');
   private growthLabel = $('growth-label');
   private dnaCount = $('dna-count');
   private dnaBtn = $('dna-btn');
@@ -87,6 +89,12 @@ export class UI {
     if (e !== L.e) { L.e = e; this.energyFill.style.transform = `scaleX(${e / 100})`; this.energyFill.parentElement!.classList.toggle('low', e < 22); }
     const hp = Math.round((p.hp / p.maxHp) * 200) / 2;
     if (hp !== L.hp) { L.hp = hp; this.hpFill.style.transform = `scaleX(${Math.max(0, hp) / 100})`; this.hpFill.parentElement!.classList.toggle('low', hp < 30); }
+    const showBreath = g.env.land;
+    if (this.breathBar.hidden === showBreath) this.breathBar.hidden = !showBreath;
+    if (showBreath) {
+      this.breathFill.style.transform = `scaleX(${Math.max(0, p.breath)})`;
+      this.breathBar.classList.toggle('low', p.breath < 0.35);
+    }
     const gf = Math.round(p.growthFrac * 200) / 2;
     if (gf !== L.g || p.eraIndex !== L.era) {
       L.g = gf;
@@ -435,6 +443,7 @@ export class UI {
       case 'heat': return 'Tip: vent cores are scalding. A Protective Membrane or Contractile Vacuole lets you feast on vent nutrients safely.';
       case 'spines': return 'Tip: spiny cells hurt to touch unless you have a Protective Membrane — or Pseudopods to engulf them whole.';
       case 'toxin': return 'Tip: toxic prey hurts to eat. Pellicle Plates make you immune.';
+      case 'suffocated': return 'Tip: dry land is safe from sea hunters, but you can only hold your breath so long. Lungs and Keratin Skin let you stay ashore.';
       default: return '';
     }
   }
@@ -519,7 +528,7 @@ export class UI {
         body.appendChild(zl);
       } else {
         const r = d.records;
-        const deaths = Object.entries(r.deaths).map(([k, v]) => `<span class="chip">${({ predator: 'Eaten', starved: 'Starved', heat: 'Boiled', spines: 'Shredded', toxin: 'Poisoned' } as Record<string, string>)[k] || k} ×${v}</span>`).join('') || '<span class="muted">—</span>';
+        const deaths = Object.entries(r.deaths).map(([k, v]) => `<span class="chip">${({ predator: 'Eaten', starved: 'Starved', heat: 'Boiled', spines: 'Shredded', toxin: 'Poisoned', suffocated: 'Suffocated' } as Record<string, string>)[k] || k} ×${v}</span>`).join('') || '<span class="muted">—</span>';
         body.innerHTML = `
           <div class="stat-grid">
             <div><small>Lives lived</small><b>${r.runs}</b></div>

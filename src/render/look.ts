@@ -56,6 +56,14 @@ export interface Look {
   electro?: boolean;
   mottled?: boolean;
   forkTail?: boolean;
+  /** ── land body plan (Era VI) ── */
+  legs?: number;
+  legLen?: number;
+  wings?: boolean;
+  airSac?: boolean;
+  ears?: boolean;
+  tongue?: boolean;
+  eggs?: boolean;
 }
 
 export const baseLook = (o: Partial<Look>): Look => ({

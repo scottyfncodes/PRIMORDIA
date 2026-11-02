@@ -148,6 +148,17 @@ function handleEvents() {
         audio.strike(e.kill);
         if (!e.kill) fx.text(e.x, e.y - e.r, 'Wounded', '#ffd0b0', textSize);
         break;
+      case 'tongue':
+        fx.beam(e.x1, e.y1, e.x2, e.y2, '#ff8aa0', p.r * 0.09, 0.3);
+        audio.ability('tongue');
+        break;
+      case 'revive':
+        renderer.evolveFlash = 0.9;
+        fx.burst(e.x, e.y, 50, '#fff4d0', p.r * 6, p.r * 0.25);
+        fx.ring(e.x, e.y, p.r, p.r * 6, '#ffd27a', 1.2);
+        audio.mutation();
+        deathTimer = -1;
+        break;
       case 'satellitePop':
         fx.burst(e.x, e.y, 12, p.look.glow, p.r * 3, p.r * 0.15);
         audio.blocked();

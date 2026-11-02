@@ -61,6 +61,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .b-track i { display: block; height: 100%; width: 100%; transform-origin: left; border-radius: 99px; transition: transform 0.15s linear; }
 .energy .b-track i { background: linear-gradient(90deg, #2fc6b0, #9dfff0); box-shadow: 0 0 10px rgba(92, 242, 214, 0.6); }
 .integrity .b-track { height: 4px; }
+.breath[hidden] { display: none; }
+.breath .b-track { height: 4px; }
+.breath .b-track i { background: linear-gradient(90deg, #7ab8ff, #d8f0ff); }
 .integrity .b-track i { background: linear-gradient(90deg, #ff6b7d, #ffb3a8); }
 .bar.low .b-track i { animation: lowpulse 0.6s ease-in-out infinite alternate; }
 .energy.low .b-ic { color: var(--coral); }
@@ -84,7 +87,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 #pause-btn span { width: 3.5px; height: 13px; border-radius: 2px; background: var(--ink); opacity: 0.85; }
 
 #zone-label {
-  position: absolute; top: calc(var(--sat) + 96px); left: 0; right: 0; text-align: center; font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase;
+  position: absolute; top: calc(var(--sat) + 118px); left: 0; right: 0; text-align: center; font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase;
   color: rgba(220,255,248,0.0); pointer-events: none;
 }
 #zone-label.flash { animation: zone 3.4s ease forwards; }
@@ -97,7 +100,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 #hint.show { opacity: 1; transform: translate(-50%, 0); }
 
-#toasts { position: absolute; top: calc(var(--sat) + 118px); left: 50%; transform: translateX(-50%); width: min(88vw, 340px); display: grid; gap: 6px; pointer-events: none; }
+#toasts { position: absolute; top: calc(var(--sat) + 140px); left: 50%; transform: translateX(-50%); width: min(88vw, 340px); display: grid; gap: 6px; pointer-events: none; }
 .toast { padding: 9px 13px; border-radius: 13px; background: var(--glass-2); border: 1px solid var(--line); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); animation: tin 0.45s cubic-bezier(.2,.9,.3,1.2); transition: opacity 0.5s, transform 0.5s; }
 .toast.out { opacity: 0; transform: translateY(-8px); }
 .toast .t-k { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--teal); }

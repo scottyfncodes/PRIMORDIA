@@ -168,7 +168,7 @@ describe('era IV', () => {
 
 describe('era V', () => {
   it('is playable with vertebrate forms, species and mutations', () => {
-    expect(MAX_PLAYABLE_ERA).toBe(5);
+    expect(MAX_PLAYABLE_ERA).toBeGreaterThanOrEqual(5);
     expect(ERAS[3].mutationsToLeap).toBeLessThan(20);
     expect(SPECIES.filter((s) => s.eras.includes(5)).length).toBeGreaterThanOrEqual(8);
     for (const f of FORMS.filter((f) => f.era === 5)) {
@@ -210,5 +210,69 @@ describe('era V', () => {
     expect(g.world.countAlive()).toBeGreaterThan(10);
     for (let i = 0; i < 200; i++) g.update(1 / 60, { mx: 0.7, my: 0.7, burst: i % 50 === 0, abilities: {} });
     expect(Number.isFinite(g.player.x)).toBe(true);
+  });
+});
+
+describe('era VI', () => {
+  const toEra6 = (arch: 'predator' | 'defender' | 'opportunist' | 'phototroph' = 'opportunist') => {
+    const g = new Game();
+    g.newRun();
+    for (let e = 2; e <= 6; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, arch); g.confirmLeap(); }
+    return g;
+  };
+  it('is playable, with tetrapod forms and a land ecosystem', () => {
+    expect(MAX_PLAYABLE_ERA).toBe(6);
+    expect(SPECIES.filter((s) => s.eras.includes(6) && s.habitat === 'land').length).toBeGreaterThanOrEqual(4);
+    for (const f of FORMS.filter((f) => f.era === 6)) expect(buildPlayerLook({}, 6, f).legs).toBe(2);
+  });
+  it('the leap raises a coastline and starts you in the water', () => {
+    const g = toEra6();
+    expect(g.env.land).toBe(true);
+    expect(g.env.scale).toBe(14);
+    expect(g.env.isLand(g.env.w / 2, 10)).toBe(true);
+    expect(g.env.isLand(g.env.w / 2, g.env.h - 10)).toBe(false);
+    expect(g.env.isLand(g.player.x, g.player.y)).toBe(false);
+    expect(g.env.zoneAt(g.env.w / 2, 10)).toBe('land');
+    g.newRun();
+    expect(g.env.land).toBe(false);
+  });
+  it('without lungs you run out of breath on land; full lungs fix it', () => {
+    const g = toEra6();
+    const p = g.player;
+    const put = () => { p.x = g.env.w / 2; p.y = g.env.coastY(p.x) - p.r * 4; p.vx = p.vy = 0; };
+    put();
+    for (let i = 0; i < 60 * 3; i++) { put(); g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} }); }
+    expect(p.onLand).toBe(true);
+    expect(p.breath).toBeLessThan(0.75);
+    p.addTrait('lungs'); p.addTrait('lungs'); p.breath = 1;
+    for (let i = 0; i < 60 * 3; i++) { put(); g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} }); }
+    expect(p.breath).toBe(1);
+  });
+  it('limbs let you walk; fish flop', () => {
+    const g = toEra6();
+    expect(g.player.stats.landSpeed).toBeLessThan(0.5);
+    g.player.addTrait('limbs');
+    expect(g.player.stats.landSpeed).toBeGreaterThan(0.8);
+  });
+  it('sea creatures never crawl onto land', () => {
+    const g = toEra6();
+    const x = g.env.w / 2, cy = g.env.coastY(x);
+    const shark = g.world.spawnOrganism(SPECIES_BY_ID.shark, x, cy + 600, 400)!;
+    shark.vx = 0; shark.vy = -3000; shark.wanderA = -Math.PI / 2;
+    g.player.x = x; g.player.y = cy - 3000;
+    for (let i = 0; i < 240; i++) g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} });
+    if (shark.alive) expect(g.env.isLand(shark.x, shark.y)).toBe(false);
+  });
+  it('an amniotic egg hatches once instead of dying', () => {
+    const g = toEra6();
+    const p = g.player;
+    p.addTrait('egg');
+    g.damage(1e9, 'predator', SPECIES_BY_ID.shark);
+    g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} });
+    expect(g.state).toBe('playing');
+    expect(p.hp).toBeGreaterThan(0);
+    g.damage(1e9, 'predator', SPECIES_BY_ID.shark);
+    g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} });
+    expect(g.state).toBe('dead');
   });
 });

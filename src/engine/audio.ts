@@ -201,6 +201,7 @@ export class Audio {
     if (id === 'harden') { this.tone(330, 1, 0.6, 0.1, 'triangle'); this.tone(495, 1, 0.6, 0.06, 'triangle'); }
     if (id === 'pulse') { this.tone(660, 0.5, 1.2, 0.12, 'sine', 0.002); this.tone(990, 0.5, 1.0, 0.05, 'sine', 0.002); }
     if (id === 'strike') { this.noise(0.25, 1400, 0.2, 1.5, 'bandpass', 0.4); this.tone(260, 0.6, 0.2, 0.1, 'triangle', 0.002); }
+    if (id === 'tongue') { this.tone(520, 0.35, 0.18, 0.12, 'triangle', 0.002); this.noise(0.12, 2000, 0.08, 3); }
     if (id === 'ink') { this.noise(1.4, 300, 0.22, 0.6, 'lowpass', 0.3); this.tone(90, 0.7, 1.2, 0.08, 'sine', 0.05); }
     if (id === 'toxin') { this.noise(1.2, 700, 0.2, 0.7, 'bandpass', 0.3); this.tone(140, 0.7, 0.9, 0.08, 'sawtooth', 0.05); }
   }

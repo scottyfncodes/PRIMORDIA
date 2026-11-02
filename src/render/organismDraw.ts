@@ -713,6 +713,57 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.restore();
   }
 
+  // legs: walking gait (tetrapod limbs or arthropod legs)
+  if (l.legs) {
+    const n = Math.min(14, l.legs);
+    const big = n <= 2;
+    const ll = r * (l.legLen || 0.6);
+    const gait = t * (2.5 + spd * 9);
+    ctx.strokeStyle = rgba(big ? l.inner : l.membrane, 0.9 * alpha);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let k = 0; k < n; k++) {
+      const u = n === 1 ? 0.3 : n === 2 ? [0.26, 0.62][k] : 0.14 + (k / (n - 1)) * 0.7;
+      const i = Math.min(N, Math.round(u * N));
+      for (const side of [-1, 1]) {
+        const ph = gait + k * Math.PI * (big ? 1 : 0.55) + (side > 0 ? 0 : Math.PI);
+        const swing = Math.sin(ph) * (0.15 + 0.45 * Math.min(1, spd + 0.15));
+        const lift = Math.max(0, Math.cos(ph));
+        const hx = SX[i] + SNX[i] * SW[i] * 0.75 * side, hy = SY[i] + SNY[i] * SW[i] * 0.75 * side;
+        // knee: out to the side and swinging fore/aft
+        const kx = hx + SNX[i] * ll * 0.55 * side + swing * ll * 0.5, ky = hy + SNY[i] * ll * 0.55 * side;
+        const fx = kx + swing * ll * 0.45 + ll * (big ? 0.25 : 0.1), fy = ky + SNY[i] * ll * (0.4 - lift * 0.12) * side;
+        ctx.lineWidth = Math.max(0.6, r * (big ? 0.11 : 0.035));
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+        if (big) {
+          // digits
+          ctx.lineWidth = Math.max(0.5, r * 0.035);
+          ctx.beginPath();
+          for (let d = -1; d <= 1; d++) { ctx.moveTo(fx, fy); ctx.lineTo(fx + r * 0.12, fy + d * r * 0.07 + side * r * 0.03); }
+          ctx.stroke();
+        }
+      }
+    }
+  }
+  // insect wings
+  if (l.wings) {
+    const flap = 0.75 + 0.25 * Math.sin(t * 38 + seed);
+    for (const [u, sweep] of [[0.3, 0.25], [0.42, 0.45]] as const) {
+      const i = Math.min(N, Math.round(u * N));
+      for (const side of [-1, 1]) {
+        const span = r * 1.35 * flap;
+        const ang = Math.atan2(SNY[i] * side, SNX[i] * side) - side * sweep;
+        ctx.save();
+        ctx.translate(SX[i], SY[i]);
+        ctx.rotate(ang);
+        ctx.fillStyle = rgba('#e8fbff', 0.16 * alpha);
+        ctx.strokeStyle = rgba(l.glow, 0.5 * alpha);
+        ctx.lineWidth = Math.max(0.5, r * 0.012);
+        ctx.beginPath(); ctx.ellipse(span * 0.5, 0, span * 0.5, r * 0.13, 0, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(span * 0.95, 0); ctx.moveTo(span * 0.3, 0); ctx.lineTo(span * 0.6, r * 0.08); ctx.moveTo(span * 0.4, 0); ctx.lineTo(span * 0.7, -r * 0.08); ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
   // paired fins
   const fins = Math.min(6, l.fins || 0);
   for (let k = 0; k < fins; k++) {
@@ -1182,6 +1233,49 @@ function drawVertebrateDetails(ctx: CanvasRenderingContext2D, l: Look, r: number
           ctx.beginPath(); ctx.moveTo(px - r * 0.025, py); ctx.lineTo(px + r * 0.025, py); ctx.lineTo(px, py - side * r * 0.05); ctx.closePath(); ctx.fill();
         }
       }
+    }
+  }
+  // throat air sac — pulses as the lungs gulp air
+  if (l.airSac) {
+    const breath = 0.6 + 0.4 * Math.sin(t * 2.2 + o.seed);
+    const ai = Math.max(1, Math.round(N * 0.16));
+    ctx.fillStyle = rgba('#e8f8ff', 0.22 * alpha);
+    ctx.strokeStyle = rgba('#ffffff', 0.35 * alpha);
+    ctx.lineWidth = Math.max(0.5, r * 0.015);
+    ctx.beginPath(); ctx.ellipse(SX[ai], SY[ai], r * 0.16 * breath, SW[ai] * 0.55 * breath, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  }
+  // eardrums behind the eyes
+  if (l.ears) {
+    const ei = Math.max(1, Math.round(N * 0.12));
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = rgba(l.inner, 0.7 * alpha);
+      ctx.strokeStyle = rgba(l.membrane, 0.8 * alpha);
+      ctx.lineWidth = Math.max(0.5, r * 0.02);
+      ctx.beginPath(); ctx.arc(SX[ei] - r * 0.08, SY[ei] + side * SW[ei] * 0.62, r * 0.075, 0, TAU); ctx.fill(); ctx.stroke();
+    }
+  }
+  // sticky tongue flick
+  if (l.tongue) {
+    const flick = Math.max(0, Math.sin(t * 1.3 + o.seed * 3));
+    if (flick > 0.85) {
+      const len = r * 0.9 * (flick - 0.85) / 0.15;
+      ctx.strokeStyle = rgba('#ff8aa0', 0.9 * alpha);
+      ctx.lineWidth = Math.max(0.8, r * 0.04);
+      ctx.beginPath(); ctx.moveTo(L / 2, 0); ctx.lineTo(L / 2 + len, Math.sin(t * 9) * r * 0.05); ctx.stroke();
+      ctx.fillStyle = rgba('#ffb0c0', 0.95 * alpha);
+      ctx.beginPath(); ctx.arc(L / 2 + len, Math.sin(t * 9) * r * 0.05, r * 0.05, 0, TAU); ctx.fill();
+    }
+  }
+  // clutch of eggs carried near the tail
+  if (l.eggs) {
+    const ci = Math.round(N * 0.7);
+    for (let k = 0; k < 6; k++) {
+      const a = k * 1.05;
+      const ex = SX[ci] + Math.cos(a) * r * 0.12, ey = SY[ci] + Math.sin(a) * r * 0.1;
+      ctx.fillStyle = rgba('#fff4d0', 0.55 * alpha);
+      ctx.beginPath(); ctx.arc(ex, ey, r * 0.06, 0, TAU); ctx.fill();
+      ctx.fillStyle = rgba('#ffb84a', 0.7 * alpha);
+      ctx.beginPath(); ctx.arc(ex, ey, r * 0.022, 0, TAU); ctx.fill();
     }
   }
   // electroreceptor pores on the snout

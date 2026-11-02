@@ -36,6 +36,8 @@ export interface SpeciesDef {
   weight: number;
   /** spawns only close to vents */
   ventBound?: boolean;
+  /** where it can live: water (default), land, or both (amphibious / flying) */
+  habitat?: 'water' | 'land' | 'both';
   look: Look;
 }
 
@@ -284,7 +286,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'shoal', name: 'Silver Shoal', latin: 'Argentiscis gregaria', category: 'prey',
     desc: 'Glinting little fish that move as one. Hard to pick out, easy to scatter.',
-    eras: [5], size: [90, 140], speed: 1500, accel: 2100, diet: 'nutrients', sight: 9, aggression: 0, schooling: 0.9, fear: 0.95,
+    eras: [5, 6], size: [90, 140], speed: 1500, accel: 2100, diet: 'nutrients', sight: 9, aggression: 0, schooling: 0.9, fear: 0.95,
     defenses: [], energy: 180, growth: 70, dna: 14, hp: 140, bite: 0,
     zones: { shallows: 1.4, drift: 1.5, thicket: 0.7, vents: 0.5, abyss: 0.4 }, weight: 1.6,
     look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#e8f6ff', inner: '#4a7a9a', glow: '#b8e6ff', elong: 0.7, segments: 8, fins: 2, tailFin: 0.9, forkTail: true, eyes: 1, scales: true }),
@@ -300,7 +302,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'ray', name: 'Shock Ray', latin: 'Torpedo antiquus', category: 'competitor',
     desc: 'Flat and patient. Touch it and an electric pulse tears through you.',
-    eras: [5], size: [220, 320], speed: 380, accel: 500, diet: 'both', sight: 5, aggression: 0.2, schooling: 0, fear: 0.3,
+    eras: [5, 6], size: [220, 320], speed: 380, accel: 500, diet: 'both', sight: 5, aggression: 0.2, schooling: 0, fear: 0.3,
     defenses: ['spiny'], energy: 380, growth: 130, dna: 24, hp: 500, bite: 40,
     zones: { shallows: 0.6, drift: 0.6, thicket: 1, vents: 1, abyss: 1.2 }, weight: 0.7,
     look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#a8c8ff', inner: '#2a3a7a', glow: '#7ab8ff', elong: 0, segments: 7, fins: 2, tailFin: 0.3, eyes: 1, electro: true, mottled: true, glowStrength: 1.3 }),
@@ -316,7 +318,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'shark', name: 'Early Shark', latin: 'Cladoselache primus', category: 'predator',
     desc: 'Sleek, tireless and lined with teeth. It circles before it strikes.',
-    eras: [5], size: [380, 520], speed: 1600, accel: 1700, diet: 'prey', sight: 9, aggression: 1, schooling: 0, fear: 0, lunge: 1.8,
+    eras: [5, 6], size: [380, 520], speed: 1600, accel: 1700, diet: 'prey', sight: 9, aggression: 1, schooling: 0, fear: 0, lunge: 1.8,
     defenses: [], energy: 700, growth: 230, dna: 70, hp: 1800, bite: 130,
     zones: { shallows: 0.6, drift: 1.3, thicket: 0.4, vents: 0.8, abyss: 1.1 }, weight: 0.35,
     look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#b8c8d8', inner: '#3a4a5a', glow: '#8ac8ff', elong: 1, segments: 10, fins: 2, tailFin: 1.4, forkTail: true, eyes: 1, jaw: 2, electro: true }),
@@ -324,7 +326,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'titan', name: 'Iron-Jaw Titan', latin: 'Dunkleosteus rex', category: 'predator',
     desc: 'A colossus in bone armour with self-sharpening jaw plates. Nothing in the sea is safe from it.',
-    eras: [5], size: [640, 800], speed: 950, accel: 900, diet: 'prey', sight: 6, aggression: 0.9, schooling: 0, fear: 0, lunge: 1.6,
+    eras: [5, 6], size: [640, 800], speed: 950, accel: 900, diet: 'prey', sight: 6, aggression: 0.9, schooling: 0, fear: 0, lunge: 1.6,
     defenses: [], energy: 1200, growth: 400, dna: 120, hp: 4000, bite: 180,
     zones: { shallows: 0.3, drift: 0.9, thicket: 0.5, vents: 1, abyss: 1.4 }, weight: 0.14,
     look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#9aa8b8', inner: '#2a2e3a', glow: '#ff6a4a', elong: 0.6, segments: 10, fins: 2, tailFin: 1.1, eyes: 1, jaw: 2, headArmor: true, mottled: true }),
@@ -336,6 +338,63 @@ export const SPECIES: SpeciesDef[] = [
     defenses: [], energy: 450, growth: 120, dna: 140, hp: 500, bite: 0,
     zones: { abyss: 1.5, drift: 0.4, vents: 0.5 }, weight: 0.16,
     look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#a8d8ff', inner: '#2a4a8a', glow: '#8ae0ff', elong: 0.5, segments: 9, fins: 4, lobeFins: true, tailFin: 0.9, eyes: 1, scales: true, mottled: true, glowStrength: 1.5 }),
+  }),
+  // ───────────── ERA VI (land) ─────────────
+  S({
+    id: 'fern', name: 'Primeval Fern', latin: 'Archaeopteris prima', category: 'harmless',
+    desc: 'One of the first true plants on land, unrolling fronds toward an open sky.',
+    eras: [6], size: [200, 320], speed: 6, accel: 8, diet: 'none', sight: 2, aggression: 0, schooling: 0, fear: 0, sessile: true,
+    defenses: [], energy: 420, growth: 160, dna: 12, hp: 300, bite: 0, habitat: 'land',
+    zones: { land: 1.6 }, weight: 1.2,
+    look: baseLook({ body: 'frond', membrane: '#c8f0a0', inner: '#2f6a2a', glow: '#9ae06a' }),
+  }),
+  S({
+    id: 'scuttler', name: 'Scuttler', latin: 'Blattoides primus', category: 'prey',
+    desc: 'Quick little arthropods that swarm over the moss and vanish into cracks.',
+    eras: [6], size: [140, 220], speed: 2300, accel: 3200, diet: 'nutrients', sight: 10, aggression: 0, schooling: 0.8, fear: 1,
+    defenses: [], energy: 300, growth: 110, dna: 18, hp: 200, bite: 0, habitat: 'land',
+    zones: { land: 1.6 }, weight: 1.3,
+    look: baseLook({ body: 'swimmer', membrane: '#e0c890', inner: '#6a4a1a', glow: '#ffd27a', elong: 0.3, segments: 5, legs: 3, legLen: 0.7, receptors: 2, carapace: true }),
+  }),
+  S({
+    id: 'millipede', name: 'Giant Millipede', latin: 'Arthropleura lenta', category: 'competitor',
+    desc: 'A slow armoured giant of the undergrowth. Gentle — and enormous.',
+    eras: [6], size: [280, 420], speed: 520, accel: 700, diet: 'nutrients', sight: 6, aggression: 0, schooling: 0, fear: 0.3,
+    defenses: ['shelled'], energy: 700, growth: 240, dna: 30, hp: 1500, bite: 0, habitat: 'land',
+    zones: { land: 1 }, weight: 0.7,
+    look: baseLook({ body: 'swimmer', membrane: '#b8906a', inner: '#4a2a1a', glow: '#e09a5a', elong: 1.6, segments: 15, legs: 12, legLen: 0.35, carapace: true, receptors: 2 }),
+  }),
+  S({
+    id: 'landscorp', name: 'Shore Stalker', latin: 'Pulmonoscorpius rex', category: 'predator',
+    desc: 'The first land hunter: an air-breathing scorpion that waits at the water\'s edge for anything that crawls out.',
+    eras: [6], size: [520, 700], speed: 1900, accel: 2200, diet: 'prey', sight: 7, aggression: 0.95, schooling: 0, fear: 0, lunge: 1.6,
+    defenses: [], energy: 1200, growth: 380, dna: 110, hp: 4200, bite: 220, habitat: 'land',
+    zones: { land: 0.55 }, weight: 0.5,
+    look: baseLook({ body: 'swimmer', membrane: '#8a6a5a', inner: '#2a1a14', glow: '#ff7a4a', elong: 0.7, segments: 10, legs: 4, legLen: 0.6, claws: 2, carapace: true, eyes: 2, tailFin: 0.4 }),
+  }),
+  S({
+    id: 'mudskipper', name: 'Mud Hopper', latin: 'Periophthalmus avus', category: 'prey',
+    desc: 'A little fish that props itself up on its fins and skips across the wet sand.',
+    eras: [6], size: [160, 240], speed: 1900, accel: 2600, diet: 'nutrients', sight: 9, aggression: 0, schooling: 0.6, fear: 0.95,
+    defenses: [], energy: 320, growth: 120, dna: 18, hp: 260, bite: 0, habitat: 'both',
+    zones: { land: 0.8, shallows: 0.9 }, weight: 1.1,
+    look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#c8d8b0', inner: '#4a5a3a', glow: '#b8e08a', elong: 0.5, segments: 8, legs: 1, legLen: 0.5, tailFin: 0.6, eyes: 1, mottled: true }),
+  }),
+  S({
+    id: 'rival', name: 'Rival Tetrapod', latin: 'Ichthyostega aemula', category: 'competitor',
+    desc: 'Another lineage that crawled out of the sea. It wants the same shoreline you do.',
+    eras: [6], size: [400, 560], speed: 1500, accel: 1800, diet: 'both', sight: 7, aggression: 0.4, schooling: 0, fear: 0.4,
+    defenses: [], energy: 900, growth: 300, dna: 45, hp: 2400, bite: 120, habitat: 'both',
+    zones: { land: 0.7, shallows: 0.6, drift: 0.3 }, weight: 0.55,
+    look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#9ab88a', inner: '#2a3a24', glow: '#9ae07a', elong: 0.7, segments: 10, legs: 2, legLen: 0.65, tailFin: 0.9, eyes: 1, jaw: 1, mottled: true }),
+  }),
+  S({
+    id: 'skydarter', name: 'Sky Darter', latin: 'Meganeura aurea', category: 'rare',
+    desc: 'A giant early insect on glittering wings. It answers to neither land nor sea.',
+    eras: [6], size: [220, 300], speed: 3000, accel: 3600, diet: 'none', sight: 13, aggression: 0, schooling: 0, fear: 1,
+    defenses: [], energy: 500, growth: 140, dna: 180, hp: 400, bite: 0, habitat: 'both',
+    zones: { land: 0.9, shallows: 0.3 }, weight: 0.14,
+    look: baseLook({ body: 'swimmer', membrane: '#c8f0ff', inner: '#2a5a8a', glow: '#8ae8ff', elong: 1.3, segments: 10, wings: true, eyes: 2, glowStrength: 1.6 }),
   }),
 ];
 

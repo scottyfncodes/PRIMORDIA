@@ -20,7 +20,7 @@ export class Renderer {
   private bokeh: Snow[] = [];
   private vignette: HTMLCanvasElement | null = null;
   private visible: Organism[] = [];
-  private zw: Record<ZoneId, number> = { shallows: 0, drift: 0, thicket: 0, vents: 0, abyss: 0 };
+  private zw: Record<ZoneId, number> = { shallows: 0, drift: 0, thicket: 0, vents: 0, abyss: 0, land: 0 };
   hurtFlash = 0;
   evolveFlash = 0;
   time = 0;
@@ -206,13 +206,17 @@ export class Renderer {
       if (Math.random() < dt * 8) this.fx.bubbles(v.x + rand(-v.r, v.r) * 0.4, v.y, 1, v.r * 0.4);
     }
 
+    // dry land (Era VI)
+    if (env.land) this.drawLand(game, minX, minY, maxX, maxY);
+
     // rocks
     for (const r of env.rocks) {
       if (r.x + r.r < minX || r.x - r.r > maxX || r.y + r.r < minY || r.y - r.r > maxY) continue;
       const g = ctx.createRadialGradient(r.x - r.r * 0.35, r.y - r.r * 0.45, r.r * 0.1, r.x, r.y, r.r * 1.05);
-      g.addColorStop(0, 'rgba(70,110,120,0.95)');
-      g.addColorStop(0.55, 'rgba(22,42,52,0.97)');
-      g.addColorStop(1, 'rgba(6,14,20,0.98)');
+      const dry = env.land && env.isLand(r.x, r.y);
+      g.addColorStop(0, dry ? 'rgba(170,165,150,0.98)' : 'rgba(70,110,120,0.95)');
+      g.addColorStop(0.55, dry ? 'rgba(105,98,84,0.98)' : 'rgba(22,42,52,0.97)');
+      g.addColorStop(1, dry ? 'rgba(58,52,44,0.98)' : 'rgba(6,14,20,0.98)');
       ctx.fillStyle = g;
       ctx.beginPath();
       const n = 14;
@@ -247,7 +251,7 @@ export class Renderer {
       } else if (n.kind === 'scrap') {
         drawGlow(ctx, '#ffc2a8', n.x, n.y, n.r * 3, 0.45 * fade * tw);
       } else {
-        drawGlow(ctx, '#8cffe6', n.x, n.y, n.r * 3, 0.42 * fade * tw);
+        drawGlow(ctx, env.land && env.isLand(n.x, n.y) ? '#e6ff9a' : '#8cffe6', n.x, n.y, n.r * 3, 0.42 * fade * tw);
       }
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -361,7 +365,7 @@ export class Renderer {
     for (const b of this.bokeh) {
       const px = mod(b.x * w * 1.4 - cx * z * b.d * 0.3, w * 1.4) - w * 0.2;
       const py = mod(b.y * h * 1.4 - cy * z * b.d * 0.3 - this.time * 4, h * 1.4) - h * 0.2;
-      ctx.globalAlpha = b.a * (0.4 + light * 0.6);
+      ctx.globalAlpha = b.a * (0.4 + light * 0.6) * (env.isLand(cx, cy) ? 0.25 : 1);
       ctx.drawImage(bs, px - b.s, py - b.s, b.s * 2, b.s * 2);
     }
     ctx.globalAlpha = 1;
@@ -506,6 +510,140 @@ export class Renderer {
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 1.9, 0, TAU); ctx.stroke();
   }
 
+  /** Shoreline, beach and ground cover for Era VI. */
+  private drawLand(game: Game, minX: number, minY: number, maxX: number, maxY: number) {
+    const ctx = this.ctx, env = game.env, t = env.time;
+    const k = env.scale;
+    const pad = (maxX - minX) * 0.1;
+    const x0 = minX - pad, x1 = maxX + pad;
+    const n = 64;
+    const xs: number[] = [], ys: number[] = [];
+    let anyVisible = false;
+    for (let i = 0; i <= n; i++) {
+      const x = x0 + ((x1 - x0) * i) / n;
+      const y = env.coastY(x);
+      xs.push(x); ys.push(y);
+      if (y > minY) anyVisible = true;
+    }
+    const [ix, iy] = env.island;
+    const ir = env.island[2] * 1.25;
+    const islandVisible = ix + ir > minX && ix - ir < maxX && iy + ir > minY && iy - ir < maxY;
+    if (!anyVisible && !islandVisible) return;
+
+    const band = 120 * k;
+    const groundPath = () => {
+      ctx.beginPath();
+      if (anyVisible) {
+        ctx.moveTo(x0, minY - pad);
+        for (let i = 0; i <= n; i++) ctx.lineTo(xs[i], ys[i]);
+        ctx.lineTo(x1, minY - pad);
+        ctx.closePath();
+      }
+      if (islandVisible) {
+        for (let i = 0; i <= 48; i++) {
+          const a = (i / 48) * TAU;
+          const rr = env.islandRadius(a);
+          const px = ix + Math.cos(a) * rr, py = iy + Math.sin(a) * rr;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      }
+    };
+    const coastStroke = () => {
+      ctx.beginPath();
+      if (anyVisible) for (let i = 0; i <= n; i++) { if (i === 0) ctx.moveTo(xs[i], ys[i]); else ctx.lineTo(xs[i], ys[i]); }
+      if (islandVisible) {
+        for (let i = 0; i <= 48; i++) {
+          const a = (i / 48) * TAU;
+          const rr = env.islandRadius(a);
+          const px = ix + Math.cos(a) * rr, py = iy + Math.sin(a) * rr;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+      }
+    };
+
+    // waves lapping on the water side
+    for (let w = 0; w < 3; w++) {
+      const ph = (t * 0.35 + w / 3) % 1;
+      ctx.save();
+      ctx.translate(0, ph * band * 0.9);
+      coastStroke();
+      ctx.strokeStyle = `rgba(230,255,250,${0.32 * (1 - ph)})`;
+      ctx.lineWidth = band * 0.12 * (1 - ph * 0.5);
+      ctx.stroke();
+      ctx.restore();
+    }
+    // shallow turquoise water hugging the shore
+    coastStroke();
+    ctx.strokeStyle = 'rgba(120,230,220,0.18)';
+    ctx.lineWidth = band * 2.2;
+    ctx.stroke();
+
+    // ground
+    groundPath();
+    const midCoast = anyVisible ? ys[n >> 1] : iy;
+    const g = ctx.createLinearGradient(0, midCoast, 0, midCoast - (maxY - minY) * 1.2);
+    g.addColorStop(0, '#6f7f4f');
+    g.addColorStop(0.25, '#466a3a');
+    g.addColorStop(1, '#22381f');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    ctx.save();
+    groundPath();
+    ctx.clip();
+    // beach and wet sand inside the land
+    coastStroke();
+    ctx.strokeStyle = '#d8c79a';
+    ctx.lineWidth = band * 1.6;
+    ctx.stroke();
+    coastStroke();
+    ctx.strokeStyle = '#a8966a';
+    ctx.lineWidth = band * 0.5;
+    ctx.stroke();
+    // ground cover: moss tufts, pebbles and sprigs on a deterministic grid
+    const C = 150 * k;
+    const cx0 = Math.floor(minX / C), cx1 = Math.ceil(maxX / C);
+    const cy0 = Math.floor(minY / C), cy1 = Math.ceil(maxY / C);
+    for (let gx = cx0; gx <= cx1; gx++) {
+      for (let gy = cy0; gy <= cy1; gy++) {
+        const h = hash2(gx, gy);
+        if (h < 0.35) continue;
+        const px = (gx + hash2(gy, gx * 3)) * C, py = (gy + hash2(gx * 7, gy)) * C;
+        if (!env.isLand(px, py)) continue;
+        const beach = py > env.coastY(px) - band * 1.6 && py < env.coastY(px) + 1;
+        const s2 = C * (0.12 + h * 0.18);
+        if (beach || h < 0.5) {
+          ctx.fillStyle = beach ? 'rgba(120,105,80,0.55)' : 'rgba(150,160,150,0.45)';
+          ctx.beginPath(); ctx.ellipse(px, py, s2 * 0.6, s2 * 0.4, h * 6, 0, TAU); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.18)';
+          ctx.beginPath(); ctx.ellipse(px - s2 * 0.15, py - s2 * 0.12, s2 * 0.2, s2 * 0.1, h * 6, 0, TAU); ctx.fill();
+        } else if (h < 0.8) {
+          ctx.fillStyle = 'rgba(120,180,80,0.5)';
+          for (let q = 0; q < 4; q++) { ctx.beginPath(); ctx.arc(px + Math.cos(q * 1.7 + h) * s2 * 0.5, py + Math.sin(q * 1.7 + h) * s2 * 0.4, s2 * 0.42, 0, TAU); ctx.fill(); }
+          ctx.fillStyle = 'rgba(190,230,120,0.35)';
+          ctx.beginPath(); ctx.arc(px - s2 * 0.2, py - s2 * 0.2, s2 * 0.25, 0, TAU); ctx.fill();
+        } else {
+          const sway = Math.sin(t * 1.2 + h * 10) * 0.12;
+          ctx.strokeStyle = 'rgba(150,210,100,0.75)';
+          ctx.lineWidth = s2 * 0.08;
+          ctx.beginPath();
+          for (let q = 0; q < 5; q++) {
+            const a = -Math.PI / 2 + (q - 2) * 0.45 + sway;
+            ctx.moveTo(px, py); ctx.quadraticCurveTo(px + Math.cos(a) * s2 * 0.6, py + Math.sin(a) * s2 * 0.4, px + Math.cos(a) * s2 * 1.2, py + Math.sin(a) * s2 * 1.1);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+    // sunlit edge along the shoreline
+    coastStroke();
+    ctx.strokeStyle = 'rgba(255,248,220,0.35)';
+    ctx.lineWidth = band * 0.08;
+    ctx.stroke();
+  }
+
   private tile(img: HTMLCanvasElement, ox: number, oy: number, alpha: number, scale: number) {
     const ctx = this.ctx, w = this.w, h = this.h;
     const s = img.width * scale;
@@ -525,4 +663,9 @@ function blend(w: Record<ZoneId, number>, f: (k: ZoneId) => string): string {
     r += ((n >> 16) & 255) * w[k]; g += ((n >> 8) & 255) * w[k]; b += (n & 255) * w[k];
   }
   return '#' + ((1 << 24) | (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b)).toString(16).slice(1);
+}
+
+function hash2(x: number, y: number) {
+  const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return v - Math.floor(v);
 }

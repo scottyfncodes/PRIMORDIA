@@ -451,7 +451,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .tnode.unknown { border-style: dashed; border-color: rgba(255, 255, 255, 0.15); }
 .tnode.path { border-color: rgba(255, 209, 102, 0.8); box-shadow: 0 0 14px rgba(255, 209, 102, 0.3); }
 .tnode.sel { outline: 2px solid rgba(232, 255, 250, 0.7); outline-offset: 2px; }
-.tn-name { position: absolute; top: 57px; padding: 1px 4px; border-radius: 6px; background: rgba(3, 18, 26, 0.85); width: auto; max-width: 86px; left: 50%; transform: translateX(-50%); width: 86px; font-family: var(--display); font-size: 10.5px; line-height: 1.12; text-align: center; color: rgba(232, 255, 250, 0.85); pointer-events: none; }
+.tn-name { position: absolute; top: 57px; padding: 1px 4px; border-radius: 6px; background: rgba(3, 18, 26, 0.85); width: auto; max-width: 86px; left: 50%; transform: translateX(-50%); font-family: var(--display); font-size: 10.5px; line-height: 1.12; text-align: center; color: rgba(232, 255, 250, 0.85); pointer-events: none; }
 .tnode.unknown .tn-name { color: var(--muted); font-family: var(--sans); }
 .tree-legend { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
 .tree-legend i { width: 22px; height: 2px; background: var(--gold); box-shadow: 0 0 6px rgba(255, 209, 102, 0.7); }

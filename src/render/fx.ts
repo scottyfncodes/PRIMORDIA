@@ -1,7 +1,7 @@
 import { rand, rgba, TAU } from '../engine/math';
 import { drawGlow } from './sprites';
 
-type Kind = 'spark' | 'ring' | 'bubble' | 'text' | 'shard' | 'beam';
+type Kind = 'spark' | 'ring' | 'bubble' | 'text' | 'shard' | 'beam' | 'debris' | 'gene';
 
 interface P {
   active: boolean;
@@ -58,11 +58,26 @@ export class Fx {
       this.spawn('shard', x, y, { vx: Math.cos(a) * s, vy: Math.sin(a) * s, max: rand(0.5, 1), size: size * rand(0.6, 1.2), color, drag: 3 });
     }
   }
+  /** Decomposition: membrane fragments and organic matter drifting off slowly. */
+  debris(x: number, y: number, n: number, color: string, r: number) {
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, TAU), s = rand(0.2, 1) * r * 1.4;
+      this.spawn('debris', x + Math.cos(a) * r * 0.4, y + Math.sin(a) * r * 0.4, { vx: Math.cos(a) * s, vy: Math.sin(a) * s, max: rand(1.6, 3), size: r * rand(0.08, 0.2), color, drag: 1.6, grow: 0 });
+    }
+  }
+  /** Genetic material spiralling into the body during an evolutionary transformation. */
+  gene(x: number, y: number, n: number, colors: string[], radius: number, dur = 1.1) {
+    for (let i = 0; i < n; i++) {
+      const p = this.spawn('gene', x, y, { max: dur * rand(0.8, 1.1), size: radius * rand(0.85, 1.15), color: colors[i % colors.length], drag: 0 });
+      if (p) { p.ex = rand(0, TAU); p.ey = i % 2 ? 1 : -1; p.grow = radius * 0.05; p.vx = x; p.vy = y; }
+    }
+  }
   update(dt: number) {
     for (const p of this.pool) {
       if (!p.active) continue;
       p.life += dt;
       if (p.life >= p.max) { p.active = false; continue; }
+      if (p.kind === 'gene') continue; // positioned analytically
       const d = Math.exp(-p.drag * dt);
       p.vx *= d; p.vy *= d;
       p.x += p.vx * dt; p.y += p.vy * dt;
@@ -74,6 +89,15 @@ export class Fx {
   draw(ctx: CanvasRenderingContext2D, zoom: number, minX: number, minY: number, maxX: number, maxY: number) {
     ctx.globalCompositeOperation = 'lighter';
     for (const p of this.pool) {
+      if (!p.active || p.kind !== 'gene') continue;
+      // double helix arms converging on the centre (vx, vy hold the centre)
+      const k = p.life / p.max;
+      const rad = p.size * (1 - k) * (1 - k);
+      const a = p.ex + p.ey * k * 7;
+      const gx = p.vx + Math.cos(a) * rad, gy = p.vy + Math.sin(a) * rad;
+      drawGlow(ctx, p.color, gx, gy, p.grow * (1.5 + k), 0.8 * Math.min(1, k * 4));
+    }
+    for (const p of this.pool) {
       if (!p.active || p.kind !== 'spark') continue;
       if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
       const k = 1 - p.life / p.max;
@@ -81,7 +105,7 @@ export class Fx {
     }
     ctx.globalCompositeOperation = 'source-over';
     for (const p of this.pool) {
-      if (!p.active || p.kind === 'spark') continue;
+      if (!p.active || p.kind === 'spark' || p.kind === 'gene') continue;
       if (p.x < minX - 200 || p.x > maxX + 200 || p.y < minY - 200 || p.y > maxY + 200) continue;
       const k = 1 - p.life / p.max;
       if (p.kind === 'ring') {
@@ -92,6 +116,11 @@ export class Fx {
         ctx.strokeStyle = rgba(p.color, 0.45 * k);
         ctx.lineWidth = Math.max(0.6 / zoom, p.size * 0.15);
         ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.stroke();
+      } else if (p.kind === 'debris') {
+        ctx.fillStyle = rgba(p.color, 0.45 * k);
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.life * 0.8 + p.size * 7);
+        ctx.beginPath(); ctx.ellipse(0, 0, p.size, p.size * 0.45, 0, 0, TAU); ctx.fill();
+        ctx.restore();
       } else if (p.kind === 'shard') {
         ctx.fillStyle = rgba(p.color, 0.8 * k);
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.life * 8 + p.size);

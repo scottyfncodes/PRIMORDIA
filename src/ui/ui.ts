@@ -1,15 +1,15 @@
 import type { Game, GameEvent } from '../game/game';
 import { MILESTONES } from '../game/game';
-import { ABILITY_INFO, TRAITS, TRAIT_BY_ID, type AbilityId, type Offer } from '../game/traits';
-import { ARCHETYPE_INFO, ERAS, FORMS, MAX_PLAYABLE_ERA, formFor } from '../game/eras';
-import { buildPlayerLook } from '../game/player';
-import { SPECIES } from '../sim/species';
+import { ABILITY_INFO, TRAITS, TRAIT_BY_ID, type AbilityId, type Archetype, type Offer } from '../game/traits';
+import { ARCHETYPE_INFO, ERAS, FORMS, FORM_BY_ID, MAX_PLAYABLE_ERA, formFor, type FormDef } from '../game/eras';
+import { buildPlayerLook, type Player } from '../game/player';
+import { SPECIES, SPECIES_BY_ID, type SpeciesDef } from '../sim/species';
 import { ZONES, type ZoneId } from '../sim/environment';
-import { PreviewCanvas, staticPreview } from './preview';
+import { PreviewCanvas, previewScale, staticPreview } from './preview';
+import { behaviour, characteristics, cladeOf, habitat, relations, specimenNo } from '../game/codex';
 import type { Audio } from '../engine/audio';
 import type { Input } from '../engine/input';
 import type { RunSnapshot } from '../game/save';
-import { FORM_BY_ID } from '../game/eras';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const h = (tag: string, cls = '', html = '') => {
@@ -22,6 +22,27 @@ const h = (tag: string, cls = '', html = '') => {
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 const CATEGORY_LABEL: Record<string, string> = { harmless: 'Harmless', prey: 'Prey', competitor: 'Competitor', predator: 'Predator', rare: 'Rare' };
+const ARCH_ORDER: Archetype[] = ['predator', 'defender', 'opportunist', 'phototroph'];
+const ARCH_SHORT: Record<Archetype, string> = { predator: 'Predator', defender: 'Defender', opportunist: 'Forager', phototroph: 'Phototroph' };
+/** micrometres per world unit at each era (bodies are measured in world units) */
+const UM_PER_UNIT = [0.25, 0.6, 3, 40, 400, 1500];
+
+function fmtLength(um: number) {
+  if (um < 1000) return `${um} µm`;
+  if (um < 10000) return `${um / 1000} mm`;
+  if (um < 1e6) return `${um / 10000} cm`;
+  return `${um / 1e6} m`;
+}
+
+/** Look of the player's lineage at the end of each era of this life. */
+function lineageLooks(p: Player) {
+  const traits: Record<string, number> = {};
+  return p.history.map((h) => {
+    for (const id of h.traits) traits[id] = (traits[id] || 0) + 1;
+    const form = FORM_BY_ID[h.formId] || formFor(1, 'opportunist');
+    return { h, form, look: buildPlayerLook({ ...traits }, h.era, form) };
+  });
+}
 
 export interface UiCallbacks {
   onStart: () => void;
@@ -53,6 +74,10 @@ export class UI {
   private abilityBtns = new Map<AbilityId, HTMLButtonElement>();
   private abilityKey = '';
   private previews: PreviewCanvas[] = [];
+  private toastPreviews: PreviewCanvas[] = [];
+  private scaleEl = $('scalebar');
+  private eraCard = $('era-card');
+  private scaleKey = '';
   private hintTimer = 0;
   private hintQueue: string[] = [];
   private last = { e: -1, hp: -1, g: -1, dna: -1, form: '', era: -1, evolve: false, zone: '' };
@@ -87,6 +112,27 @@ export class UI {
 
   // ───────────────────────── HUD ─────────────────────────
   showHud(on: boolean) { this.hud.hidden = !on; }
+
+  /** Micrograph-style scale bar: a round length that spans ~70px at the current zoom. */
+  setScale(pxPerUnit: number, era: number) {
+    const umPerPx = (UM_PER_UNIT[era - 1] ?? 1) / Math.max(0.0001, pxPerUnit);
+    const raw = 70 * umPerPx;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const nice = [1, 2, 5, 10].map((k) => k * mag).reduce((a, b) => (Math.abs(b - raw) < Math.abs(a - raw) ? b : a));
+    const px = Math.round(nice / umPerPx);
+    const key = `${px}|${nice}`;
+    if (key === this.scaleKey) return;
+    this.scaleKey = key;
+    (this.scaleEl.firstElementChild as HTMLElement).style.width = px + 'px';
+    this.scaleEl.lastElementChild!.textContent = fmtLength(+nice.toPrecision(3));
+  }
+
+  private showEraCard(era: number) {
+    const e = ERAS[era - 1];
+    if (!e) return;
+    this.eraCard.innerHTML = `<div class="ec-k">Era ${e.numeral}</div><div class="ec-t">${e.name}</div><div class="ec-s">${e.subtitle}</div>`;
+    this.eraCard.classList.remove('show'); void this.eraCard.offsetWidth; this.eraCard.classList.add('show');
+  }
 
   updateHud(dt: number) {
     const g = this.game, p = g.player, L = this.last;
@@ -174,6 +220,19 @@ export class UI {
     if (this.hintQueue.length > 3) this.hintQueue.shift();
   }
 
+  /** A new species: a specimen card with the living organism inside. */
+  private specimenToast(sp: SpeciesDef, dna: number) {
+    const t = h('div', 'toast specimen');
+    t.innerHTML = `<div class="sp-art"></div><div class="sp-txt"><div class="t-k">New species catalogued${dna ? ` · <b>+${dna} DNA</b>` : ''}</div><div class="t-t">${sp.name}</div><div class="t-l">${sp.latin} · No. ${specimenNo(sp)}</div></div>`;
+    const pc = new PreviewCanvas(sp.look, 'sp-canvas', previewScale(sp.look) * 1.05);
+    t.querySelector('.sp-art')!.appendChild(pc.canvas);
+    this.toastPreviews.push(pc);
+    this.toasts.appendChild(t);
+    while (this.toasts.children.length > 2) this.toasts.firstElementChild?.remove();
+    setTimeout(() => t.classList.add('out'), 3200);
+    setTimeout(() => { t.remove(); this.toastPreviews = this.toastPreviews.filter((x) => x !== pc); }, 3800);
+  }
+
   toast(title: string, sub: string, kind: string, dna: number) {
     const compact = kind === 'species';
     const t = h('div', `toast ${kind} ${compact ? 'compact' : ''}`);
@@ -190,7 +249,11 @@ export class UI {
 
   handleEvent(e: GameEvent) {
     if (e.type === 'hint') this.hint(e.text);
-    else if (e.type === 'discover') { this.toast(e.title, e.sub, e.kind, e.dna); }
+    else if (e.type === 'discover') {
+      const sp = e.speciesId ? SPECIES_BY_ID[e.speciesId] : undefined;
+      if (sp) this.specimenToast(sp, e.dna); else this.toast(e.title, e.sub, e.kind, e.dna);
+    }
+    else if (e.type === 'leap') this.showEraCard(e.era);
     else if (e.type === 'mutation') {
       const t = TRAIT_BY_ID[e.traitId];
       this.toast(t.levels[e.level - 1].name, e.first ? 'New mutation discovered' : 'Mutation acquired', 'mutation', 0);
@@ -214,6 +277,24 @@ export class UI {
   /** animate menu previews */
   tick(t: number) {
     for (const p of this.previews) p.draw(t);
+    for (const p of this.toastPreviews) p.draw(t, 0.4);
+  }
+
+  /** This life's evolutionary path: one node per era with the mutations chosen in it. */
+  private lineageRibbon(p: Player): HTMLElement {
+    const wrap = h('div', 'ribbon');
+    const steps = lineageLooks(p);
+    steps.forEach(({ h: st, form, look }, i) => {
+      const node = h('div', `rb-node ${i === steps.length - 1 ? 'now' : ''}`);
+      const art = h('div', 'rb-art');
+      art.appendChild(staticPreview(look, 58, look.body === 'swimmer' ? 0.24 : 0.3));
+      node.appendChild(art);
+      const genes = st.traits.map((id) => `<span title="${TRAIT_BY_ID[id].name}">${TRAIT_BY_ID[id].icon}</span>`).join('');
+      node.appendChild(h('div', 'rb-txt', `<div class="rb-era">Era ${ERAS[st.era - 1].numeral}</div><div class="rb-name">${form.name}</div><div class="rb-genes">${genes || '<i>—</i>'}</div>`));
+      wrap.appendChild(node);
+      if (i < steps.length - 1) wrap.appendChild(h('div', 'rb-link'));
+    });
+    return wrap;
   }
 
   showTitle() {
@@ -308,6 +389,8 @@ export class UI {
         <h2>Paused</h2>
         <div class="pause-org"></div>
         <div class="pause-name">${p.form.name} <span class="muted">· Era ${p.era.numeral} · ${ARCHETYPE_INFO[p.archetype].name}</span></div>
+        <h3>This lineage</h3>
+        <div class="pause-ribbon"></div>
         <div class="chips">${traits}</div>
         <div class="statline"><span>Alive <b>${fmtTime(g.run.time)}</b></span><span>Eaten <b>${g.run.eaten}</b></span><span>DNA <b>${g.run.dna}</b></span></div>
         <button class="btn primary" id="p-resume">Resume</button>
@@ -322,6 +405,7 @@ export class UI {
     const pc = new PreviewCanvas(p.look, 'pause-canvas', 0.26);
     el.querySelector('.pause-org')!.appendChild(pc.canvas);
     this.previews.push(pc);
+    el.querySelector('.pause-ribbon')!.appendChild(this.lineageRibbon(p));
     el.querySelector('#p-resume')!.addEventListener('click', () => { this.audio.ui(); this.togglePause(); });
     el.querySelector('#p-codex')!.addEventListener('click', () => { this.audio.ui(); this.showCodex(() => this.showPause()); });
     el.querySelector('#p-settings')!.addEventListener('click', () => { this.audio.ui(); this.showSettings(() => this.showPause()); });
@@ -431,6 +515,7 @@ export class UI {
           <div><small>DNA gathered</small><b>${r.dna}</b>${best.dna ? '<em>New best</em>' : ''}</div>
           <div><small>Regions</small><b>${r.zones.size}/5</b></div>
         </div>
+        <h3>Your lineage</h3><div class="death-ribbon"></div>
         <h3>Mutations</h3><div class="chips">${traits}</div>
         <h3>New discoveries</h3><div class="chips">${disc}</div>
         <h3>Milestones</h3><div class="chips">${ms}</div>
@@ -445,6 +530,7 @@ export class UI {
     const pc = new PreviewCanvas(p.look, 'pause-canvas', 0.26);
     el.querySelector('.death-org')!.appendChild(pc.canvas);
     this.previews.push(pc);
+    el.querySelector('.death-ribbon')!.appendChild(this.lineageRibbon(p));
     el.querySelector('#d-again')!.addEventListener('click', () => { this.audio.ui(); this.cb.onRestart(); });
     el.querySelector('#d-codex')!.addEventListener('click', () => { this.audio.ui(); this.showCodex(() => this.showDeathAgain()); });
     el.querySelector('#d-title')!.addEventListener('click', () => { this.audio.ui(); this.cb.onQuitToTitle(); });
@@ -476,109 +562,261 @@ export class UI {
     }
   }
 
-  // ───────────────────────── codex ─────────────────────────
+  // ───────────────────────── codex: a field journal ─────────────────────────
   showCodex(back: () => void, tab = 'species') {
     this.previews = [];
-    const d = this.game.progress.data;
     const el = h('div', 'panel-screen codex');
-    const tabs = ['species', 'mutations', 'forms', 'eras', 'records'];
-    const seenCount = SPECIES.filter((s) => d.species[s.id]).length;
+    const tabs: [string, string][] = [['species', 'Specimens'], ['lineage', 'Tree of Life'], ['mutations', 'Mutations'], ['eras', 'Eras'], ['records', 'Records']];
     el.innerHTML = `
-      <div class="panel codex-panel">
-        <div class="codex-head"><h2>Codex</h2><button class="btn small ghost" id="cx-back">Close</button></div>
-        <div class="tabs">${tabs.map((t) => `<button data-t="${t}" class="${t === tab ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>
+      <div class="panel codex-panel journal">
+        <div class="codex-head">
+          <div><div class="ev-k">Field Journal</div><h2>Codex of the Primordial Sea</h2></div>
+          <button class="btn small ghost" id="cx-back">Close</button>
+        </div>
+        <div class="tabs">${tabs.map(([t, n]) => `<button data-t="${t}" class="${t === tab ? 'on' : ''}">${n}</button>`).join('')}</div>
         <div class="codex-body scroll"></div>
       </div>`;
-    const body = el.querySelector('.codex-body')!;
+    const body = el.querySelector('.codex-body') as HTMLElement;
     const render = (t: string) => {
+      this.previews = [];
       body.innerHTML = '';
-      if (t === 'species') {
-        body.appendChild(h('p', 'muted', `${seenCount} of ${SPECIES.length} species recorded`));
-        const grid = h('div', 'cards');
-        for (const s of SPECIES) {
-          const e = d.species[s.id];
-          const c = h('div', `card ${e ? '' : 'unknown'} cat-${s.category}`);
-          if (e) {
-            c.appendChild(staticPreview(s.look, 76, s.look.body === 'worm' ? 0.18 : s.look.body === 'spiral' || s.look.body === 'rod' ? 0.2 : s.look.body === 'polyp' ? 0.24 : 0.28));
-            c.appendChild(h('div', 'c-body', `<div class="c-name">${s.name}</div><div class="c-latin">${s.latin}</div><div class="c-tag">${CATEGORY_LABEL[s.category]} · Era ${s.eras.map((x) => ERAS[x - 1].numeral).join('–')}</div><div class="c-desc">${s.desc}</div><div class="c-stats">Eaten <b>${e.eaten}</b>${e.killedBy ? ` · Killed you <b>${e.killedBy}</b>` : ''}</div>`));
-          } else {
-            c.appendChild(h('div', 'c-unknown', '?'));
-            c.appendChild(h('div', 'c-body', `<div class="c-name">Unknown organism</div><div class="c-desc">Not yet observed. Found in Era ${ERAS[s.eras[0] - 1].numeral}${s.category === 'rare' ? ' · rare' : ''}.</div>`));
-          }
-          grid.appendChild(c);
-        }
-        body.appendChild(grid);
-      } else if (t === 'mutations') {
-        const grid = h('div', 'list');
-        for (const tr of TRAITS) {
-          const lv = d.mutations[tr.id] || 0;
-          const row = h('div', `row-item ${lv ? '' : 'unknown'}`);
-          row.innerHTML = lv
-            ? `<div class="ri-ic">${tr.icon}</div><div><div class="c-name">${tr.name} <span class="muted">· ${tr.category} · Era ${ERAS[tr.era - 1].numeral}</span></div><div class="c-desc">${tr.bio}</div><div class="levels">${tr.levels.map((l, i) => `<span class="chip ${i < lv ? '' : 'dim'}">${l.name}</span>`).join('')}</div></div>`
-            : `<div class="ri-ic">?</div><div><div class="c-name">Undiscovered mutation</div><div class="c-desc">${tr.category} · becomes possible in Era ${ERAS[tr.era - 1].numeral}${tr.requires ? ` · requires ${tr.requires.map((r) => TRAIT_BY_ID[r].name).join(', ')}` : ''}</div></div>`;
-          grid.appendChild(row);
-        }
-        body.appendChild(grid);
-      } else if (t === 'forms') {
-        body.appendChild(h('p', 'muted', 'Your lineage takes a different form at each era, shaped by the mutations you choose.'));
-        const grid = h('div', 'cards');
-        for (const f of FORMS) {
-          const n = d.forms[f.id] || 0;
-          const c = h('div', `card ${n ? '' : 'unknown'}`);
-          if (n) {
-            const traits: Record<string, number> = {};
-            const sample: Record<string, string[]> = { predator: ['flagellum', 'pseudopods'], defender: ['membrane'], opportunist: ['cilia'], phototroph: ['photosynthesis'] };
-            if (f.archetype) for (const id of sample[f.archetype]) traits[id] = 1;
-            c.appendChild(staticPreview(buildPlayerLook(traits, f.era, f), 76));
-            c.appendChild(h('div', 'c-body', `<div class="c-name">${f.name}</div><div class="c-tag">Era ${ERAS[f.era - 1].numeral}${f.archetype ? ' · ' + ARCHETYPE_INFO[f.archetype].name : ''}</div><div class="c-desc">${f.desc}</div><div class="c-stats">Reached <b>${n}</b>×</div>`));
-          } else {
-            c.appendChild(h('div', 'c-unknown', '?'));
-            c.appendChild(h('div', 'c-body', `<div class="c-name">Unknown form</div><div class="c-desc">Era ${ERAS[f.era - 1].numeral}${f.archetype ? ` · a ${ARCHETYPE_INFO[f.archetype].name.toLowerCase()} lineage` : ''}</div>`));
-          }
-          grid.appendChild(c);
-        }
-        body.appendChild(grid);
-      } else if (t === 'eras') {
-        const list = h('div', 'timeline');
-        for (const e of ERAS) {
-          const reached = d.maxEra >= e.index;
-          const item = h('div', `tl ${reached ? 'reached' : ''} ${e.playable ? '' : 'future'}`);
-          item.innerHTML = `<div class="tl-n">${e.numeral}</div><div><div class="c-name">${e.name}</div><div class="c-desc">${e.subtitle}</div><div class="c-tag">${reached ? 'Reached' : e.playable ? 'Not yet reached' : 'Uncharted — beyond this release'}</div></div>`;
-          list.appendChild(item);
-        }
-        body.appendChild(list);
-        const zl = h('div', 'list');
-        zl.appendChild(h('h3', '', 'Regions of the Primordial Sea'));
-        for (const z of Object.keys(ZONES) as ZoneId[]) {
-          const known = d.zones[z];
-          zl.appendChild(h('div', `row-item ${known ? '' : 'unknown'}`, `<div class="ri-ic">${known ? '◈' : '?'}</div><div><div class="c-name">${known ? ZONES[z].name : 'Unexplored region'}</div><div class="c-desc">${known ? ZONES[z].blurb : 'Somewhere out in the sea…'}</div></div>`));
-        }
-        body.appendChild(zl);
-      } else {
-        const r = d.records;
-        const deaths = Object.entries(r.deaths).map(([k, v]) => `<span class="chip">${({ predator: 'Eaten', starved: 'Starved', heat: 'Boiled', spines: 'Shredded', toxin: 'Poisoned', suffocated: 'Suffocated' } as Record<string, string>)[k] || k} ×${v}</span>`).join('') || '<span class="muted">—</span>';
-        body.innerHTML = `
-          <div class="stat-grid">
-            <div><small>Lives lived</small><b>${r.runs}</b></div>
-            <div><small>Longest life</small><b>${fmtTime(r.bestTime)}</b></div>
-            <div><small>Most DNA</small><b>${r.bestDna}</b></div>
-            <div><small>Most eaten</small><b>${r.mostEaten}</b></div>
-            <div><small>Total eaten</small><b>${r.totalEaten}</b></div>
-            <div><small>Furthest era</small><b>${ERAS[d.maxEra - 1].numeral}</b></div>
-          </div>
-          <h3>Fates</h3><div class="chips">${deaths}</div>
-          <h3>Milestones</h3>
-          <div class="list">${Object.entries(MILESTONES).map(([id, m]) => `<div class="row-item ${d.milestones[id] ? '' : 'unknown'}"><div class="ri-ic">${d.milestones[id] ? '★' : '☆'}</div><div><div class="c-name">${m.name}</div><div class="c-desc">${m.desc}</div></div></div>`).join('')}</div>`;
-      }
+      body.scrollTop = 0;
+      if (t === 'species') this.renderSpecimens(body);
+      else if (t === 'lineage') this.renderTree(body);
+      else if (t === 'mutations') this.renderMutations(body);
+      else if (t === 'eras') this.renderEras(body);
+      else this.renderRecords(body);
     };
     el.querySelectorAll<HTMLButtonElement>('.tabs button').forEach((b) => b.addEventListener('click', () => {
       el.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
       this.audio.ui();
       render(b.dataset.t!);
-      body.scrollTop = 0;
     }));
     el.querySelector('#cx-back')!.addEventListener('click', () => { this.audio.ui(); back(); });
     this.open('codex', el);
     render(tab);
+  }
+
+  private renderSpecimens(body: HTMLElement) {
+    const d = this.game.progress.data;
+    const seen = SPECIES.filter((s) => d.species[s.id]).length;
+    const frac = seen / SPECIES.length;
+    const C = 2 * Math.PI * 26;
+    const head = h('div', 'cx-summary');
+    head.innerHTML = `
+      <svg viewBox="0 0 64 64" class="cx-ring"><circle cx="32" cy="32" r="26" class="bgc"/><circle cx="32" cy="32" r="26" class="fgc" stroke-dasharray="${(C * frac).toFixed(1)} ${C.toFixed(1)}"/></svg>
+      <div><div class="cx-count"><b>${seen}</b> of ${SPECIES.length} species catalogued</div>
+      <div class="cx-eras">${ERAS.map((e) => {
+        const all = SPECIES.filter((s) => s.eras[0] === e.index);
+        const got = all.filter((s) => d.species[s.id]).length;
+        return `<span class="${got === all.length && all.length ? 'done' : ''}"><em>${e.numeral}</em><i style="--f:${all.length ? got / all.length : 0}"></i></span>`;
+      }).join('')}</div></div>`;
+    body.appendChild(head);
+    for (const e of ERAS) {
+      const list = SPECIES.filter((s) => s.eras[0] === e.index);
+      if (!list.length) continue;
+      const got = list.filter((s) => d.species[s.id]).length;
+      body.appendChild(h('div', 'cx-era', `<span>Era ${e.numeral} · ${e.name}</span><b>${got}/${list.length}</b>`));
+      const grid = h('div', 'plates');
+      for (const sp of list) {
+        const known = !!d.species[sp.id];
+        const tile = h('button', `plate ${known ? '' : 'unknown'} cat-${sp.category}`) as HTMLButtonElement;
+        tile.appendChild(staticPreview(sp.look, 84, previewScale(sp.look), 'preview', !known));
+        tile.appendChild(h('div', 'pl-no', `No. ${specimenNo(sp)}`));
+        tile.appendChild(h('div', 'pl-name', known ? sp.name : 'Unidentified'));
+        tile.addEventListener('click', () => {
+          if (known) { this.audio.ui(); this.renderSpecimen(body, sp); return; }
+          tile.classList.remove('shake'); void tile.offsetWidth; tile.classList.add('shake');
+          const zones = habitat(sp).slice(0, 1).map((z) => z.name).join('');
+          this.hint(`Not yet observed — look in ${zones || 'the sea'} during Era ${ERAS[sp.eras[0] - 1].numeral}${sp.category === 'rare' ? ' (rare)' : ''}`);
+          tile.querySelector('.pl-name')!.textContent = zones ? `Seen in ${zones}?` : 'Unidentified';
+        });
+        grid.appendChild(tile);
+      }
+      body.appendChild(grid);
+    }
+  }
+
+  /** A full journal entry for one species. */
+  private renderSpecimen(body: HTMLElement, sp: SpeciesDef) {
+    this.previews = [];
+    const d = this.game.progress.data;
+    const e = d.species[sp.id];
+    const clade = cladeOf(sp);
+    const rel = relations(sp);
+    const known = (s: SpeciesDef) => !!d.species[s.id];
+    const date = e?.seen ? new Date(e.seen).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+    body.innerHTML = '';
+    body.scrollTop = 0;
+    const el = h('div', 'specimen');
+    el.innerHTML = `
+      <button class="sp-back">‹ All specimens</button>
+      <div class="slide">
+        <div class="slide-art"></div>
+        <div class="slide-meta"><span>No. ${specimenNo(sp)}</span><span>${clade.path.join(' › ')}</span></div>
+      </div>
+      <div class="sp-title">
+        <h3 class="sp-name">${sp.name}</h3>
+        <div class="sp-latin">${sp.latin}</div>
+        <div class="sp-tags"><span class="tag cat-${sp.category}">${CATEGORY_LABEL[sp.category]}</span><span class="tag">Era ${sp.eras.map((x) => ERAS[x - 1].numeral).join('–')}</span><span class="tag">${clade.name}</span></div>
+      </div>
+      <p class="sp-desc">${sp.desc}</p>
+      <h4>Characteristics</h4>
+      <div class="chips left">${characteristics(sp).map((c) => `<span class="chip">${c}</span>`).join('')}</div>
+      <h4>Behaviour</h4>
+      <ul class="notes">${behaviour(sp).map((b) => `<li>${b}</li>`).join('')}</ul>
+      <h4>Habitat</h4>
+      <div class="habitat">${habitat(sp).map((z) => `<div class="hb"><span>${d.zones[z.zone] ? z.name : 'Unexplored region'}</span><i style="--f:${z.w.toFixed(2)}"></i></div>`).join('')}</div>
+      <h4>Evolutionary relationships</h4>
+      <p class="muted small">${clade.name}: ${clade.blurb}</p>
+      <div class="rel"></div>
+      <h4>Observation record</h4>
+      <div class="stat-grid three">
+        <div><small>First observed</small><b class="sm">${date}</b></div>
+        <div><small>Consumed</small><b>${e?.eaten ?? 0}</b></div>
+        <div><small>Killed you</small><b>${e?.killedBy ?? 0}</b></div>
+      </div>`;
+    const pc = new PreviewCanvas(sp.look, 'slide-canvas', previewScale(sp.look) * 1.1);
+    el.querySelector('.slide-art')!.appendChild(pc.canvas);
+    this.previews.push(pc);
+    const relEl = el.querySelector('.rel')!;
+    const group = (label: string, list: SpeciesDef[]) => {
+      if (!list.length) return;
+      const g = h('div', 'rel-group', `<div class="rel-k">${label}</div>`);
+      const row = h('div', 'rel-row');
+      for (const s of list) {
+        const k = known(s);
+        const b = h('button', `rel-sp ${k ? '' : 'unknown'}`) as HTMLButtonElement;
+        b.appendChild(staticPreview(s.look, 46, previewScale(s.look), 'preview', !k));
+        b.appendChild(h('span', '', k ? s.name : '?'));
+        if (k) b.addEventListener('click', () => { this.audio.ui(); this.renderSpecimen(body, s); });
+        row.appendChild(b);
+      }
+      g.appendChild(row);
+      relEl.appendChild(g);
+    };
+    group('Closest relatives', rel.relatives);
+    group('Preys upon', rel.preysOn);
+    group('Hunted by', rel.huntedBy);
+    if (!relEl.children.length) relEl.appendChild(h('p', 'muted small', 'No known relatives — a lineage of one.'));
+    el.querySelector('.sp-back')!.addEventListener('click', () => { this.audio.ui(); this.previews = []; body.innerHTML = ''; this.renderSpecimens(body); });
+    body.appendChild(el);
+  }
+
+  /** The Tree of Life: every form a lineage can take, era by era. */
+  private renderTree(body: HTMLElement) {
+    const d = this.game.progress.data;
+    const discovered = FORMS.filter((f) => d.forms[f.id]).length;
+    body.appendChild(h('p', 'muted small', `Every life begins as a Protocell. The mutations you favour decide which branch it grows along at each leap. <b>${discovered}</b> of ${FORMS.length} forms discovered.`));
+    const W = Math.max(300, Math.min(520, body.clientWidth || 340));
+    const left = 26, colW = (W - left) / 4, rowH = 112, node = 54, top = 60;
+    const maxEra = ERAS.length;
+    const H = top + (maxEra - 1) * rowH + node + 34;
+    const tree = h('div', 'tree');
+    tree.style.width = W + 'px';
+    tree.style.height = H + 'px';
+    const pos = (f: FormDef): [number, number] => {
+      if (!f.archetype) return [left + (W - left) / 2, top];
+      return [left + colW * (ARCH_ORDER.indexOf(f.archetype) + 0.5), top + (f.era - 1) * rowH];
+    };
+    const path = d.lastLineage || [];
+    const onPath = (a: FormDef, b: FormDef) => { const i = path.indexOf(a.id); return i >= 0 && path[i + 1] === b.id; };
+    let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+    // archetype columns
+    ARCH_ORDER.forEach((a, i) => { svg += `<text x="${left + colW * (i + 0.5)}" y="14" class="col">${ARCH_SHORT[a]}</text>`; });
+    for (let e = 1; e <= maxEra; e++) svg += `<text x="4" y="${top + (e - 1) * rowH + 4}" class="eran">${ERAS[e - 1].numeral}</text>`;
+    const links: string[] = [], gold: string[] = [];
+    for (const f of FORMS) {
+      if (f.era <= 1) continue;
+      const prev = FORMS.filter((p) => p.era === f.era - 1);
+      for (const p of prev) {
+        const [x1, y1] = pos(p), [x2, y2] = pos(f);
+        const main = !p.archetype || p.archetype === f.archetype;
+        const reached = !!d.forms[p.id] && !!d.forms[f.id];
+        const dpath = `M${x1},${y1 + node / 2} C${x1},${(y1 + y2) / 2 + 8} ${x2},${(y1 + y2) / 2 - 8} ${x2},${y2 - node / 2}`;
+        if (onPath(p, f)) gold.push(`<path d="${dpath}" class="ln gold"/>`);
+        else if (main || reached) links.push(`<path d="${dpath}" class="ln ${main ? 'main' : 'cross'} ${reached ? 'lit' : ''}"/>`);
+      }
+    }
+    svg += links.join('') + gold.join('') + '</svg>';
+    tree.innerHTML = svg;
+    const info = h('div', 'tree-info', '<span class="muted small">Tap a form to read about it.</span>');
+    for (const f of FORMS) {
+      const n = d.forms[f.id] || 0;
+      const [x, y] = pos(f);
+      const b = h('button', `tnode ${n ? '' : 'unknown'} ${path.includes(f.id) ? 'path' : ''}`) as HTMLButtonElement;
+      b.style.left = x - node / 2 + 'px';
+      b.style.top = y - node / 2 + 'px';
+      const traits: Record<string, number> = {};
+      const sample: Record<string, string[]> = { predator: ['flagellum', 'pseudopods'], defender: ['membrane'], opportunist: ['cilia'], phototroph: ['photosynthesis'] };
+      if (f.archetype) for (const id of sample[f.archetype]) traits[id] = 1;
+      const look = buildPlayerLook(traits, f.era, f);
+      b.appendChild(staticPreview(look, node, look.body === 'swimmer' ? 0.22 : 0.3, 'preview', !n));
+      b.appendChild(h('span', 'tn-name', n ? f.name : '?'));
+      b.addEventListener('click', () => {
+        this.audio.ui();
+        tree.querySelectorAll('.tnode').forEach((x) => x.classList.toggle('sel', x === b));
+        info.innerHTML = n
+          ? `<div class="ti-k">Era ${ERAS[f.era - 1].numeral}${f.archetype ? ' · ' + ARCHETYPE_INFO[f.archetype].name : ' · The common ancestor'}</div><div class="ti-t">${f.name}</div><p>${f.desc}</p><div class="muted small">Reached ${n}×${path.includes(f.id) ? ' · on your most recent lineage' : ''}</div>`
+          : `<div class="ti-k">Era ${ERAS[f.era - 1].numeral}${f.archetype ? ' · ' + ARCHETYPE_INFO[f.archetype].name : ''}</div><div class="ti-t">Undiscovered form</div><p class="muted">Lead a lineage into Era ${ERAS[f.era - 1].numeral} favouring ${f.archetype ? ARCHETYPE_INFO[f.archetype].name.toLowerCase() + ' mutations' : 'any path'} to reveal it.</p>`;
+      });
+      tree.appendChild(b);
+    }
+    const scroller = h('div', 'tree-wrap');
+    scroller.appendChild(tree);
+    body.appendChild(scroller);
+    if (path.length) body.appendChild(h('div', 'tree-legend', '<i></i> Your most recent lineage'));
+    body.appendChild(info);
+  }
+
+  private renderMutations(body: HTMLElement) {
+    const d = this.game.progress.data;
+    const grid = h('div', 'list');
+    for (const tr of TRAITS) {
+      const lv = d.mutations[tr.id] || 0;
+      const row = h('div', `row-item ${lv ? '' : 'unknown'}`);
+      row.innerHTML = lv
+        ? `<div class="ri-ic">${tr.icon}</div><div><div class="c-name">${tr.name} <span class="muted">· ${tr.category} · Era ${ERAS[tr.era - 1].numeral}</span></div><div class="c-desc">${tr.bio}</div><div class="levels">${tr.levels.map((l, i) => `<span class="chip ${i < lv ? '' : 'dim'}">${l.name}</span>`).join('')}</div></div>`
+        : `<div class="ri-ic">?</div><div><div class="c-name">Undiscovered mutation</div><div class="c-desc">${tr.category} · becomes possible in Era ${ERAS[tr.era - 1].numeral}${tr.requires ? ` · requires ${tr.requires.map((r) => TRAIT_BY_ID[r].name).join(', ')}` : ''}</div></div>`;
+      grid.appendChild(row);
+    }
+    body.appendChild(grid);
+  }
+
+  private renderEras(body: HTMLElement) {
+    const d = this.game.progress.data;
+    const list = h('div', 'timeline');
+    for (const e of ERAS) {
+      const reached = d.maxEra >= e.index;
+      const item = h('div', `tl ${reached ? 'reached' : ''} ${e.playable ? '' : 'future'}`);
+      const scale = fmtLength(+(e.minR * 2 * (UM_PER_UNIT[e.index - 1] ?? 1)).toPrecision(2));
+      item.innerHTML = `<div class="tl-n">${e.numeral}</div><div><div class="c-name">${e.name}</div><div class="c-desc">${e.subtitle}</div><div class="c-tag">${reached ? 'Reached' : e.playable ? 'Not yet reached' : 'Uncharted'} · bodies ~${scale}</div></div>`;
+      list.appendChild(item);
+    }
+    body.appendChild(list);
+    const zl = h('div', 'list');
+    zl.appendChild(h('h4', '', 'Regions of the Primordial Sea'));
+    for (const z of Object.keys(ZONES) as ZoneId[]) {
+      const known = d.zones[z];
+      zl.appendChild(h('div', `row-item ${known ? '' : 'unknown'}`, `<div class="ri-ic">${known ? '◈' : '?'}</div><div><div class="c-name">${known ? ZONES[z].name : 'Unexplored region'}</div><div class="c-desc">${known ? ZONES[z].blurb : 'Somewhere out in the sea…'}</div></div>`));
+    }
+    body.appendChild(zl);
+  }
+
+  private renderRecords(body: HTMLElement) {
+    const d = this.game.progress.data, r = d.records;
+    const deaths = Object.entries(r.deaths).map(([k, v]) => `<span class="chip">${({ predator: 'Eaten', starved: 'Starved', heat: 'Boiled', spines: 'Shredded', toxin: 'Poisoned', suffocated: 'Suffocated' } as Record<string, string>)[k] || k} ×${v}</span>`).join('') || '<span class="muted">—</span>';
+    body.innerHTML = `
+      <div class="stat-grid">
+        <div><small>Lives lived</small><b>${r.runs}</b></div>
+        <div><small>Longest life</small><b>${fmtTime(r.bestTime)}</b></div>
+        <div><small>Most DNA</small><b>${r.bestDna}</b></div>
+        <div><small>Most eaten</small><b>${r.mostEaten}</b></div>
+        <div><small>Total eaten</small><b>${r.totalEaten}</b></div>
+        <div><small>Furthest era</small><b>${ERAS[d.maxEra - 1].numeral}</b></div>
+      </div>
+      <h4>Fates</h4><div class="chips left">${deaths}</div>
+      <h4>Milestones</h4>
+      <div class="list">${Object.entries(MILESTONES).map(([id, m]) => `<div class="row-item ${d.milestones[id] ? '' : 'unknown'}"><div class="ri-ic">${d.milestones[id] ? '★' : '☆'}</div><div><div class="c-name">${m.name}</div><div class="c-desc">${m.desc}</div></div></div>`).join('')}</div>`;
   }
 }

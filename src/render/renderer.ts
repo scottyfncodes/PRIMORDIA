@@ -2,9 +2,11 @@ import { clamp, damp, mixHex, rand, rgba, TAU } from '../engine/math';
 import { ZONES, type ZoneId } from '../sim/environment';
 import type { Game } from '../game/game';
 import type { Organism } from '../sim/entities';
-import { drawOrganism } from './organismDraw';
+import { drawOrganism, type FoodVacuole } from './organismDraw';
 import { bokehSprite, drawGlow, makeNebulaTile } from './sprites';
 import { Fx } from './fx';
+import { Microcosm } from './microcosm';
+import { lerpLook, type Look } from './look';
 
 interface Snow { x: number; y: number; s: number; d: number; a: number }
 
@@ -24,12 +26,22 @@ export class Renderer {
   hurtFlash = 0;
   evolveFlash = 0;
   time = 0;
+  /** environmental layers: molecules, debris, distant life, flow, reactions */
+  micro = new Microcosm();
+  /** food vacuoles digesting inside the player */
+  food: FoodVacuole[] = [];
+  /** evolutionary transformation: the body morphs from the old look into the new one */
+  private shownLook: Look | null = null;
+  private morphFrom: Look | null = null;
+  private morphT = 1;
+  /** species being catalogued: a specimen reticle locks on */
+  scans: { o: Organism; t: number; name: string; id: number }[] = [];
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
     this.nebulaA = makeNebulaTile(768, ['#1fb6c9', '#2a6fd6', '#38d39f', '#8a5adf'], 7);
     this.nebulaB = makeNebulaTile(512, ['#7af5df', '#4cc9f0', '#b8f2e6', '#ffd6a5'], 13);
-    for (let i = 0; i < 140; i++) this.snow.push({ x: Math.random(), y: Math.random(), s: rand(0.5, 1.8), d: [0.25, 0.5, 0.8][i % 3], a: rand(0.15, 0.5) });
+    for (let i = 0; i < 90; i++) this.snow.push({ x: Math.random(), y: Math.random(), s: rand(0.5, 1.8), d: [0.25, 0.5, 0.8][i % 3], a: rand(0.15, 0.5) });
     for (let i = 0; i < 9; i++) this.bokeh.push({ x: Math.random(), y: Math.random(), s: rand(30, 90), d: rand(1.2, 1.6), a: rand(0.25, 0.6) });
     this.resize();
   }
@@ -56,7 +68,7 @@ export class Renderer {
   /** On-screen player radius in CSS px — keeps the organism readable on any device. */
   screenPlayerR() {
     const m = Math.min(this.w, this.h);
-    return 17 * Math.sqrt(m / 390);
+    return 20 * Math.sqrt(m / 390);
   }
 
   viewRadiusWorld() {
@@ -98,8 +110,10 @@ export class Renderer {
     // ───────────── background (screen space) ─────────────
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     env.zoneWeights(cx, cy, this.zw);
-    const deep = blend(this.zw, (k) => ZONES[k].deep);
-    const near = blend(this.zw, (k) => ZONES[k].near);
+    const era = game.player.eraIndex;
+    const micro = era <= 3;
+    this.micro.setEra(era);
+    const [deep, near] = this.micro.backdrop(env, cx, cy, era, blend(this.zw, (k) => ZONES[k].deep), blend(this.zw, (k) => ZONES[k].near));
     const light = env.light(cx, cy);
     const WORLD_W = env.w, WORLD_H = env.h;
     const depthDark = clamp(cy / WORLD_H, 0, 1);
@@ -111,14 +125,14 @@ export class Renderer {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
 
-    // nebula parallax
+    // soft cytoplasmic clouds (parallax)
     ctx.globalCompositeOperation = 'lighter';
-    this.tile(this.nebulaA, cx * z * 0.05, cy * z * 0.05, 0.65 + light * 0.25, 1.4);
-    this.tile(this.nebulaB, cx * z * 0.12, cy * z * 0.12, 0.35 + light * 0.3, 1);
+    this.tile(this.nebulaA, cx * z * 0.05, cy * z * 0.05, (micro ? 0.2 : 0.65) + light * (micro ? 0.12 : 0.2), 1.4);
+    this.tile(this.nebulaB, cx * z * 0.12, cy * z * 0.12, (micro ? 0.1 : 0.35) + light * (micro ? 0.1 : 0.25), 1);
     ctx.globalCompositeOperation = 'source-over';
 
-    // light shafts from the surface
-    if (light > 0.15) {
+    // sunlight shafts only once life is large enough to see the surface (Era IV+)
+    if (!micro && light > 0.15) {
       ctx.globalCompositeOperation = 'lighter';
       const n = 5;
       for (let i = 0; i < n; i++) {
@@ -141,15 +155,20 @@ export class Renderer {
       ctx.globalCompositeOperation = 'source-over';
     }
 
-    // drifting marine snow (parallax depth)
-    ctx.fillStyle = '#d8fff6';
-    for (const s of this.snow) {
-      const px = mod(s.x * w * 1.2 - cx * z * s.d * 0.4 + this.time * 6 * s.d, w * 1.2) - w * 0.1;
-      const py = mod(s.y * h * 1.2 - cy * z * s.d * 0.4 - this.time * 3 * s.d, h * 1.2) - h * 0.1;
-      ctx.globalAlpha = s.a * (0.5 + light * 0.5);
-      ctx.fillRect(px, py, s.s * s.d * 1.6, s.s * s.d * 1.6);
+    // the living soup: distant cells, molecules, debris, flow and Brownian motion
+    this.micro.drawBack(ctx, w, h, cx, cy, z, env, light, dt);
+
+    // drifting marine snow for the larger eras
+    if (!micro) {
+      ctx.fillStyle = '#d8fff6';
+      for (const s of this.snow) {
+        const px = mod(s.x * w * 1.2 - cx * z * s.d * 0.4 + this.time * 6 * s.d, w * 1.2) - w * 0.1;
+        const py = mod(s.y * h * 1.2 - cy * z * s.d * 0.4 - this.time * 3 * s.d, h * 1.2) - h * 0.1;
+        ctx.globalAlpha = s.a * (0.5 + light * 0.5);
+        ctx.fillRect(px, py, s.s * s.d * 1.6, s.s * s.d * 1.6);
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
 
     // ───────────── world space ─────────────
     const tx = w / 2 - cx * z + sx, ty = h / 2 - cy * z + sy;
@@ -167,7 +186,7 @@ export class Renderer {
       if (maxY > WORLD_H) ctx.fillRect(minX - 10, WORLD_H, maxX - minX + 20, maxY - WORLD_H + 10);
     }
 
-    // biofilm strands
+    // biofilm strands: extracellular slime colonised by bacteria
     ctx.lineCap = 'round';
     for (const s of env.strands) {
       if (s.x + s.len < minX || s.x - s.len > maxX || s.y + s.len < minY || s.y - s.len > maxY) continue;
@@ -175,15 +194,31 @@ export class Renderer {
       const a = s.angle + sway;
       const ex = s.x + Math.cos(a) * s.len, ey = s.y + Math.sin(a) * s.len;
       const mx = (s.x + ex) / 2 + Math.cos(a + Math.PI / 2) * s.len * 0.3 * s.bend, my = (s.y + ey) / 2 + Math.sin(a + Math.PI / 2) * s.len * 0.3 * s.bend;
-      ctx.strokeStyle = 'rgba(80,190,140,0.18)';
-      ctx.lineWidth = s.w * 2.2;
+      ctx.strokeStyle = micro ? 'rgba(80,200,150,0.11)' : 'rgba(80,190,140,0.18)';
+      ctx.lineWidth = s.w * (micro ? 4 : 2.2);
       ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
       ctx.strokeStyle = 'rgba(150,255,200,0.16)';
       ctx.lineWidth = s.w * 0.6;
       ctx.stroke();
+      if (micro && s.w * z > 0.8) {
+        // bacteria anchored along the strand, gently twitching
+        const nb = Math.min(12, Math.floor(s.len / (s.w * 5)));
+        ctx.fillStyle = 'rgba(170,255,210,0.42)';
+        ctx.beginPath();
+        for (let k = 0; k < nb; k++) {
+          const u = (k + 0.5) / nb;
+          const qx = (1 - u) * (1 - u) * s.x + 2 * u * (1 - u) * mx + u * u * ex;
+          const qy = (1 - u) * (1 - u) * s.y + 2 * u * (1 - u) * my + u * u * ey;
+          const side = (k % 2 ? 1 : -1) * s.w * (1.1 + 0.3 * Math.sin(t * 3 + k + s.seed));
+          const bx = qx + Math.cos(a + Math.PI / 2) * side, by = qy + Math.sin(a + Math.PI / 2) * side;
+          const br = s.w * 0.55;
+          ctx.moveTo(bx + br * 1.6, by); ctx.ellipse(bx, by, br * 1.6, br * 0.75, a + k, 0, TAU);
+        }
+        ctx.fill();
+      }
     }
 
-    // vents
+    // hydrothermal vents
     for (const v of env.vents) {
       if (v.x + v.r * 4 < minX || v.x - v.r * 4 > maxX || v.y + v.r * 4 < minY || v.y - v.r * 4 > maxY) continue;
       const pulse = 0.7 + 0.3 * Math.sin(t * 2 + v.phase);
@@ -191,6 +226,13 @@ export class Renderer {
       drawGlow(ctx, '#ff6a2a', v.x, v.y, v.r * 3.2, 0.35 * pulse);
       drawGlow(ctx, '#ffd27a', v.x, v.y, v.r * 1.1, 0.55 * pulse);
       ctx.globalCompositeOperation = 'source-over';
+      // heat shimmer: convection rings rising off the mouth
+      for (let q = 0; q < 3; q++) {
+        const k = (t * 0.35 + q / 3 + v.phase) % 1;
+        ctx.strokeStyle = `rgba(255,190,120,${0.18 * (1 - k)})`;
+        ctx.lineWidth = v.r * 0.04;
+        ctx.beginPath(); ctx.ellipse(v.x, v.y - k * v.r * 2.4, v.r * (0.5 + k * 1.2), v.r * (0.25 + k * 0.5), 0, 0, TAU); ctx.stroke();
+      }
       ctx.fillStyle = '#1a0a08';
       ctx.beginPath();
       for (let i = 0; i < 9; i++) {
@@ -202,6 +244,21 @@ export class Renderer {
       ctx.strokeStyle = `rgba(255,150,60,${0.6 * pulse})`;
       ctx.lineWidth = v.r * 0.06;
       ctx.stroke();
+      if (micro) {
+        // mineral crystals precipitating on the chimney rim
+        ctx.fillStyle = `rgba(255,220,150,${0.55 * pulse})`;
+        ctx.beginPath();
+        for (let i = 0; i < 11; i++) {
+          const a = (i / 11) * TAU + v.phase;
+          const rr = v.r * (0.62 + 0.12 * Math.sin(i * 2.7 + v.phase));
+          const cl = v.r * (0.16 + 0.1 * ((i * 7) % 3) / 2);
+          const bx = v.x + Math.cos(a) * rr, by = v.y + Math.sin(a) * rr;
+          ctx.moveTo(bx + Math.cos(a - 0.25) * cl * 0.3, by + Math.sin(a - 0.25) * cl * 0.3);
+          ctx.lineTo(bx + Math.cos(a) * cl, by + Math.sin(a) * cl);
+          ctx.lineTo(bx + Math.cos(a + 0.25) * cl * 0.3, by + Math.sin(a + 0.25) * cl * 0.3);
+        }
+        ctx.fill();
+      }
       // rising shimmer
       if (Math.random() < dt * 8) this.fx.bubbles(v.x + rand(-v.r, v.r) * 0.4, v.y, 1, v.r * 0.4);
     }
@@ -209,9 +266,10 @@ export class Renderer {
     // dry land (Era VI)
     if (env.land) this.drawLand(game, minX, minY, maxX, maxY);
 
-    // rocks
+    // rocks: translucent mineral grains under the microscope; boulders once life is large
     for (const r of env.rocks) {
       if (r.x + r.r < minX || r.x - r.r > maxX || r.y + r.r < minY || r.y - r.r > maxY) continue;
+      if (micro) { this.drawMineral(r.x, r.y, r.r, r.seed, game.env.zoneAt(r.x, r.y)); continue; }
       const g = ctx.createRadialGradient(r.x - r.r * 0.35, r.y - r.r * 0.45, r.r * 0.1, r.x, r.y, r.r * 1.05);
       const dry = env.land && env.isLand(r.x, r.y);
       g.addColorStop(0, dry ? 'rgba(170,165,150,0.98)' : 'rgba(70,110,120,0.95)');
@@ -237,6 +295,10 @@ export class Renderer {
         ctx.beginPath(); ctx.arc(r.x + Math.cos(a) * d, r.y + Math.sin(a) * d, r.r * 0.05, 0, TAU); ctx.fill();
       }
     }
+
+    // chemical reactions blooming in the water
+    this.micro.updateReactions(dt, minX, minY, maxX, maxY, game.player.r, game.player.x, game.player.y);
+    this.micro.drawReactions(ctx, z);
 
     // nutrients
     ctx.globalCompositeOperation = 'lighter';
@@ -275,6 +337,16 @@ export class Renderer {
           ctx.lineTo(n.x + u * n.r * 1.1, n.y + Math.sin(u * 3 + rot + Math.PI) * n.r * 0.6);
         }
         ctx.stroke();
+      } else if (n.kind === 'rich') {
+        // a cluster of sugar molecules
+        ctx.fillStyle = rgba('#f0fff8', 0.9 * fade);
+        ctx.beginPath();
+        for (let q = 0; q < 3; q++) {
+          const a = n.phase * 0.7 + q * (TAU / 3);
+          const qx = n.x + Math.cos(a) * n.r * 0.45, qy = n.y + Math.sin(a) * n.r * 0.45;
+          ctx.moveTo(qx + n.r * 0.32, qy); ctx.arc(qx, qy, n.r * 0.32, 0, TAU);
+        }
+        ctx.fill();
       } else {
         ctx.fillStyle = rgba(n.kind === 'scrap' ? '#ffe2d0' : '#e8fff9', 0.9 * fade);
         ctx.beginPath(); ctx.arc(n.x, n.y, n.r * 0.55, 0, TAU); ctx.fill();
@@ -294,10 +366,12 @@ export class Renderer {
     const p = game.player;
     for (const o of vis) {
       const dying = o.dyingT >= 0;
-      const scale = dying ? 1 - o.dyingT * 0.85 : 1;
-      const alpha = dying ? 1 - o.dyingT * 0.6 : 1;
+      // eaten cells are drawn into the eater; killed cells burst and decompose in place
+      const scale = dying ? 1 - o.dyingT * (o.eater ? 0.85 : 0.3) : 1;
+      const alpha = dying ? 1 - o.dyingT * (o.eater ? 0.6 : 0.85) : 1;
       const spd = Math.hypot(o.vx, o.vy) / (o.sp.speed || 1);
       const screenR = o.r * z;
+      let dentA = 0, dentK = 0;
       // indicators: hunting threat halo / edible hint
       if (!dying && p.alive && game.state !== 'title') {
         const dd = Math.hypot(o.x - p.x, o.y - p.y);
@@ -316,11 +390,20 @@ export class Renderer {
             ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 1.35, 0, TAU); ctx.stroke();
           }
         }
+        // membranes respond to the player: hunters reach toward you, prey shrink away
+        const reach = (o.r + p.r) * 1.9;
+        if (dd < reach && dd > 0.01) {
+          const k = 1 - dd / reach;
+          dentA = Math.atan2(p.y - o.y, p.x - o.x) - o.angle;
+          dentK = (game.isThreat(o) ? -0.16 : 0.12) * k;
+        }
       }
       drawOrganism(ctx, o.sp.look, o.x, o.y, o.r * scale, {
         seed: o.seed, t: t + o.phase, speed: clamp(spd, 0, 1.5), alpha,
         angle: o.angle, hurt: o.hurtT > 0 ? o.hurtT * 3 : 0, flash: o.stunT > 0 ? 0.25 : 0,
         detail: screenR > 14 ? 1 : screenR > 5 ? 0.5 : 0.1, windup: o.windupT > 0 ? 1 : 0,
+        dentA, dentK, divide: o.divideT > 0 ? o.divideT : 0, lysis: dying ? Math.min(1, o.dyingT * 1.2) : 0,
+        alarm: o.mode === 'flee' ? 1 : 0,
       });
     }
 
@@ -351,7 +434,13 @@ export class Renderer {
     }
 
     // player
-    if (game.state !== 'title' && (p.alive || game.state === 'dead')) this.drawPlayer(game, t);
+    if (game.state !== 'title' && (p.alive || game.state === 'dead')) this.drawPlayer(game, t, dt);
+
+    // digestion
+    for (let i = this.food.length - 1; i >= 0; i--) { this.food[i].k += dt / 4.5; if (this.food[i].k >= 1) this.food.splice(i, 1); }
+
+    // specimen reticles for newly catalogued species
+    this.drawScans(dt);
 
     // fx
     this.fx.update(dt);
@@ -365,7 +454,7 @@ export class Renderer {
     for (const b of this.bokeh) {
       const px = mod(b.x * w * 1.4 - cx * z * b.d * 0.3, w * 1.4) - w * 0.2;
       const py = mod(b.y * h * 1.4 - cy * z * b.d * 0.3 - this.time * 4, h * 1.4) - h * 0.2;
-      ctx.globalAlpha = b.a * (0.4 + light * 0.6) * (env.isLand(cx, cy) ? 0.25 : 1);
+      ctx.globalAlpha = b.a * (0.4 + light * 0.6) * (env.isLand(cx, cy) ? 0.25 : 1) * (game.player.eraIndex <= 3 ? 0.35 : 1);
       ctx.drawImage(bs, px - b.s, py - b.s, b.s * 2, b.s * 2);
     }
     ctx.globalAlpha = 1;
@@ -442,9 +531,9 @@ export class Renderer {
     }
   }
 
-  private drawPlayer(game: Game, t: number) {
+  private drawPlayer(game: Game, t: number, dt: number) {
     const ctx = this.ctx, p = game.player, z = this.cam.zoom;
-    const look = p.look;
+    const look = this.displayLook(game, dt);
     const spd = clamp(Math.hypot(p.vx, p.vy) / (p.maxSpeed || 1), 0, 1.6);
     const deadK = p.alive ? 1 : 0;
     // trailing stinging tentacles
@@ -499,7 +588,24 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 1.45, 0, TAU); ctx.stroke();
     }
     const transform = p.transformT >= 0 ? Math.sin(Math.min(1, p.transformT / 1.6) * Math.PI) : 0;
+    // membrane responds to the nearest neighbour: dents from obstacles, reaches toward food
+    let dentA = 0, dentK = 0, best = Infinity;
+    for (const o of this.visible) {
+      if (o.dyingT >= 0) continue;
+      const d = Math.hypot(o.x - p.x, o.y - p.y) - o.r;
+      const reach = p.r * 1.25;
+      if (d < reach && d < best) {
+        best = d;
+        dentA = Math.atan2(o.y - p.y, o.x - p.x) - p.angle;
+        dentK = (game.canEat(o) === 'ok' ? -0.12 : 0.14) * (1 - Math.max(0, d) / reach);
+      }
+    }
+    for (const r of game.env.rocks) {
+      const d = Math.hypot(r.x - p.x, r.y - p.y) - r.r;
+      if (d < p.r * 0.8 && d < best) { best = d; dentA = Math.atan2(r.y - p.y, r.x - p.x) - p.angle; dentK = 0.16 * (1 - Math.max(0, d) / (p.r * 0.8)); }
+    }
     drawOrganism(ctx, look, p.x, p.y, p.r * (1 + transform * 0.12), {
+      dentA, dentK, food: this.food,
       seed: 3.7, t, speed: spd, angle: p.angle, alpha: deadK ? (p.hiddenT > 0 || (p.stats.stealth > 0 && p.stillT > 0.6) ? 0.55 : 1) : 0.35,
       hurt: p.hurtT > 0 ? p.hurtT * 2.5 : 0, flash: transform * 0.8, engulf: p.engulfT > 0 ? 1 : 0,
       harden: p.hardenT > 0 ? 0.6 + 0.4 * Math.sin(t * 12) : 0, pulse: Math.max(p.eatPulse, p.growPulse), detail: 1,
@@ -508,6 +614,141 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(230,255,250,0.10)';
     ctx.lineWidth = 1.2 / z;
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 1.9, 0, TAU); ctx.stroke();
+  }
+
+  /**
+   * The look actually shown for the player: when evolution changes the body, the old
+   * form morphs into the new one (structures grow in, colours shift).
+   */
+  private displayLook(game: Game, dt: number): Look {
+    const p = game.player;
+    if (this.shownLook !== p.look) {
+      const prev = this.shownLook;
+      // only morph while living (not on a fresh run or the title screen)
+      if (prev && game.state !== 'title' && p.alive && p.transformT >= 0) {
+        this.morphFrom = this.morphT < 1 && this.morphFrom ? lerpLook(this.morphFrom, prev, easeInOut(this.morphT)) : prev;
+        this.morphT = 0;
+      } else {
+        this.morphT = 1;
+      }
+      this.shownLook = p.look;
+    }
+    if (this.morphT < 1 && this.morphFrom) {
+      this.morphT = Math.min(1, this.morphT + dt / 1.8);
+      return lerpLook(this.morphFrom, p.look, easeInOut(this.morphT));
+    }
+    return p.look;
+  }
+  /** 0..1 progress of the current evolutionary transformation (1 = done) */
+  get morphProgress() { return this.morphT; }
+
+  /** Lock a cataloguing reticle onto a newly discovered organism. */
+  scan(o: Organism, name: string) {
+    if (this.scans.length >= 3) this.scans.shift();
+    this.scans.push({ o, t: 0, name, id: o.id });
+  }
+
+  private drawScans(dt: number) {
+    const ctx = this.ctx, z = this.cam.zoom;
+    for (let i = this.scans.length - 1; i >= 0; i--) {
+      const s = this.scans[i];
+      s.t += dt;
+      const o = s.o;
+      if (s.t > 2.6 || !o.alive || o.id !== s.id) { this.scans.splice(i, 1); continue; }
+      const k = Math.min(1, s.t / 0.45);
+      const fade = s.t > 2 ? 1 - (s.t - 2) / 0.6 : 1;
+      const R = o.r * (1.4 + (1 - easeInOut(k)) * 1.6);
+      const a = 0.85 * fade;
+      ctx.strokeStyle = `rgba(255,214,120,${a})`;
+      ctx.lineWidth = Math.max(1.2 / z, o.r * 0.04);
+      ctx.lineCap = 'round';
+      const rot = s.t * 0.6;
+      ctx.beginPath();
+      for (let q = 0; q < 4; q++) {
+        const c = rot + q * (Math.PI / 2) + Math.PI / 4;
+        ctx.moveTo(o.x + Math.cos(c - 0.32) * R, o.y + Math.sin(c - 0.32) * R);
+        ctx.arc(o.x, o.y, R, c - 0.32, c + 0.32);
+      }
+      ctx.stroke();
+      // fine crosshair ticks
+      ctx.lineWidth = Math.max(0.8 / z, o.r * 0.02);
+      ctx.beginPath();
+      for (let q = 0; q < 4; q++) {
+        const c = q * (Math.PI / 2);
+        ctx.moveTo(o.x + Math.cos(c) * R * 1.08, o.y + Math.sin(c) * R * 1.08);
+        ctx.lineTo(o.x + Math.cos(c) * R * 1.28, o.y + Math.sin(c) * R * 1.28);
+      }
+      ctx.stroke();
+      if (k >= 1) {
+        // a scanning sweep across the specimen
+        const sw = ((s.t - 0.45) * 1.4) % 1;
+        ctx.strokeStyle = `rgba(255,230,160,${0.35 * fade * (1 - sw)})`;
+        ctx.beginPath(); ctx.arc(o.x, o.y, R * sw, 0, TAU); ctx.stroke();
+        ctx.font = `600 ${11 / z}px Outfit, system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(255,224,150,${0.9 * fade * Math.min(1, (s.t - 0.45) * 3)})`;
+        ctx.fillText(s.name.toUpperCase(), o.x, o.y + R * 1.28 + 14 / z);
+      }
+    }
+  }
+
+  /** Food vacuoles: digest over a few seconds. */
+  addFood(color: string, sizeRatio: number) {
+    this.food.push({ a: rand(0, TAU), d: rand(0.25, 0.45), s: clamp(sizeRatio * 0.45, 0.1, 0.28), color, k: 0 });
+    if (this.food.length > 5) this.food.shift();
+  }
+
+  /** A mineral grain seen under the microscope: faceted, translucent, refracting light. */
+  private drawMineral(x: number, y: number, r: number, seed: number, zone: ZoneId) {
+    const ctx = this.ctx;
+    const hot = zone === 'vents', dark = zone === 'abyss';
+    const n = 7 + Math.floor((seed * 7) % 4);
+    const px: number[] = [], py: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + seed;
+      const rr = r * (0.9 + 0.1 * Math.sin(i * 2.3 + seed * 3));
+      px.push(x + Math.cos(a) * rr); py.push(y + Math.sin(a) * rr);
+    }
+    const poly = (k: number) => {
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) { const qx = x + (px[i] - x) * k, qy = y + (py[i] - y) * k; if (i === 0) ctx.moveTo(qx, qy); else ctx.lineTo(qx, qy); }
+      ctx.closePath();
+    };
+    const base = hot ? [255, 190, 120] : dark ? [120, 150, 220] : [170, 235, 230];
+    const c = (a: number, m = 1) => `rgba(${Math.round(base[0] * m)},${Math.round(base[1] * m)},${Math.round(base[2] * m)},${a})`;
+    // phase halo
+    poly(1.06); ctx.strokeStyle = c(0.07); ctx.lineWidth = r * 0.12; ctx.stroke();
+    const g = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+    g.addColorStop(0, c(0.34));
+    g.addColorStop(0.5, c(0.12, 0.6));
+    g.addColorStop(1, c(0.26, 0.35));
+    poly(1); ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = c(0.55); ctx.lineWidth = r * 0.025; ctx.stroke();
+    // facets: refracted planes radiating from an off-centre apex
+    const ax = x - r * 0.18 + Math.cos(seed) * r * 0.1, ay = y - r * 0.2;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const lit = 0.5 + 0.5 * Math.cos(Math.atan2((py[i] + py[j]) / 2 - y, (px[i] + px[j]) / 2 - x) + 2.3);
+      ctx.fillStyle = c(0.04 + lit * 0.12, 1.1);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(px[i], py[i]); ctx.lineTo(px[j], py[j]); ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = c(0.22, 1.1); ctx.lineWidth = r * 0.012;
+    ctx.beginPath(); for (let i = 0; i < n; i++) { ctx.moveTo(ax, ay); ctx.lineTo(px[i], py[i]); } ctx.stroke();
+    // inclusions and a glint
+    ctx.fillStyle = c(0.35, 0.5);
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) { const a = seed * 2 + i * 1.7, d = r * (0.25 + (i * 0.17) % 0.45), qr = r * 0.03; ctx.moveTo(x + Math.cos(a) * d + qr, y + Math.sin(a) * d); ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, qr, 0, TAU); }
+    ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    drawGlow(ctx, hot ? '#ffd0a0' : '#e0fffb', ax, ay, r * 0.35, 0.25);
+    ctx.globalCompositeOperation = 'source-over';
+    // a fringe of microbial film colonising the grain
+    if (!hot) {
+      ctx.fillStyle = 'rgba(140,255,200,0.22)';
+      ctx.beginPath();
+      for (let i = 0; i < n; i += 2) { const qx = px[i] + (x - px[i]) * 0.04, qy = py[i] + (y - py[i]) * 0.04, qr = r * 0.035; ctx.moveTo(qx + qr, qy); ctx.arc(qx, qy, qr, 0, TAU); }
+      ctx.fill();
+    }
   }
 
   /** Shoreline, beach and ground cover for Era VI. */
@@ -653,6 +894,8 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 }
+
+function easeInOut(k: number) { return k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; }
 
 function mod(a: number, b: number) { return ((a % b) + b) % b; }
 

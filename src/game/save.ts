@@ -19,6 +19,8 @@ export interface RunSnapshot {
     traitOrder: string[];
     recentTraits: Record<string, number>;
     dna: number; dnaTotal: number; growth: number; eggsUsed: number;
+    /** lineage history (optional: older saves lack it) */
+    history?: { era: number; formId: string; traits: string[] }[];
   };
   run: {
     time: number; eaten: number; nutrients: number; dna: number; predatorsEaten: number;
@@ -42,6 +44,7 @@ export function snapshot(g: Game): RunSnapshot {
       eraIndex: p.eraIndex, formId: p.form.id,
       traits: { ...p.traits }, traitOrder: [...p.traitOrder], recentTraits: { ...p.recentTraits },
       dna: p.dna, dnaTotal: p.dnaTotal, growth: p.growth, eggsUsed: p.eggsUsed,
+      history: p.history.map((h) => ({ era: h.era, formId: h.formId, traits: [...h.traits] })),
     },
     run: {
       time: r.time, eaten: r.eaten, nutrients: r.nutrients, dna: r.dna, predatorsEaten: r.predatorsEaten,
@@ -107,6 +110,14 @@ export function restoreInto(g: Game, s: RunSnapshot) {
   p.hp = Math.max(1, Math.min(sp.hp, p.maxHp));
   p.breath = sp.breath ?? 1;
   p.dna = sp.dna; p.dnaTotal = sp.dnaTotal; p.growth = sp.growth; p.eggsUsed = sp.eggsUsed || 0;
+  const hist = Array.isArray(sp.history) ? sp.history.filter((h) => h && FORM_BY_ID[h.formId] && Array.isArray(h.traits)) : [];
+  if (hist.length && hist[hist.length - 1].era === p.eraIndex) {
+    p.history = hist.map((h) => ({ era: h.era, formId: h.formId, traits: h.traits.filter((id) => typeof id === 'string' && p.traits[id]) }));
+  } else {
+    // older save: rebuild a best-effort lineage with every mutation in the current era
+    const traits = p.traitOrder.flatMap((id) => Array(p.traits[id]).fill(id) as string[]);
+    p.history = p.eraIndex > 1 ? [{ era: 1, formId: 'protocell', traits: [] }, { era: p.eraIndex, formId: p.form.id, traits }] : [{ era: 1, formId: p.form.id, traits }];
+  }
   const r = g.run, sr = s.run;
   r.time = sr.time; r.eaten = sr.eaten; r.nutrients = sr.nutrients; r.dna = sr.dna; r.predatorsEaten = sr.predatorsEaten;
   r.damageTaken = sr.damageTaken; r.photoEnergy = sr.photoEnergy;

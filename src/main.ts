@@ -65,6 +65,8 @@ function startRun() {
   ui.closeScreen();
   renderer.fx.clear();
   runStore.clear();
+  renderer.food.length = 0;
+  renderer.scans.length = 0;
   game.newRun();
   renderer.snapCamera(game);
   renderer.cam.zoom *= 0.6; // gentle zoom-in reveal
@@ -104,6 +106,8 @@ function handleEvents() {
         fx.ring(e.x, e.y, e.r, e.r * 2.6, e.color, 0.45);
         fx.text(e.x, e.y - e.r, e.dna ? `+${e.dna} DNA` : `+${Math.round(e.energy)}`, e.dna ? '#ffd166' : '#aaffe8', textSize * (e.dna ? 1.1 : 0.9));
         if (e.toxic) fx.text(e.x, e.y + e.r, 'Toxic!', '#d78bff', textSize);
+        renderer.addFood(e.color, e.r / p.r);
+        fx.debris(e.x, e.y, 5, e.species.look.membrane, e.r);
         audio.eat(e.r / p.r);
         break;
       case 'absorb':
@@ -149,6 +153,7 @@ function handleEvents() {
         fx.burst(p.x, p.y, 40, p.look.glow, p.r * 7, p.r * 0.25);
         fx.ring(p.x, p.y, p.r, p.r * 5, p.look.membrane, 0.9);
         fx.text(p.x, p.y - p.r * 2, t.levels[e.level - 1].name, '#ffffff', textSize * 1.3);
+        fx.gene(p.x, p.y, 14, ['#ffd166', p.look.glow], p.r * 4.5, 1.2);
         audio.mutation();
         break;
       }
@@ -157,6 +162,7 @@ function handleEvents() {
         renderer.cam.shake = 0.6;
         fx.burst(p.x, p.y, 70, p.look.glow, p.r * 9, p.r * 0.3);
         fx.ring(p.x, p.y, p.r, p.r * 9, '#ffffff', 1.4);
+        fx.gene(p.x, p.y, 24, ['#ffd166', p.look.glow, '#ffffff'], p.r * 7, 1.6);
         renderer.cam.x = p.x; renderer.cam.y = p.y; // the sea may have been rescaled
         audio.setEra(e.era);
         autosave();
@@ -164,7 +170,8 @@ function handleEvents() {
         audio.leap();
         break;
       case 'discover':
-        audio.discover();
+        if (e.kind === 'species' && e.org) renderer.scan(e.org, e.title);
+        if (e.kind === 'species') audio.discover(); else audio.chime();
         break;
       case 'death':
         fx.burst(p.x, p.y, 50, p.look.glow, p.r * 6, p.r * 0.3);
@@ -176,7 +183,8 @@ function handleEvents() {
         if (Math.hypot(e.x - p.x, e.y - p.y) < renderer.viewRadiusWorld()) fx.burst(e.x, e.y, 5, '#ffb0a0', e.r * 2, e.r * 0.25);
         break;
       case 'npcDie':
-        fx.burst(e.x, e.y, 16, e.color, e.r * 3, e.r * 0.3);
+        fx.burst(e.x, e.y, 10, e.color, e.r * 3, e.r * 0.3);
+        if (Math.hypot(e.x - p.x, e.y - p.y) < renderer.viewRadiusWorld()) fx.debris(e.x, e.y, 7, e.color, e.r);
         break;
       case 'heat':
         fx.bubbles(e.x, e.y, 3, p.r * 0.5);
@@ -263,9 +271,10 @@ function frame(now: number) {
   input.playerScreen.r = p.r * renderer.cam.zoom;
 
   renderer.render(game, dt);
-  if (game.state !== 'title') ui.updateHud(dt);
+  if (game.state !== 'title') { ui.updateHud(dt); ui.setScale(renderer.cam.zoom, p.eraIndex); }
   hudEl.classList.toggle('dim', game.state !== 'playing');
   ui.tick(now / 1000);
+  audio.setPlace(game.currentZone, game.player.eraIndex);
   audio.update(dt, game.state === 'playing' ? game.danger : 0, game.env.light(renderer.cam.x, renderer.cam.y), renderer.cam.y / game.env.h, game.state === 'playing', game.state !== 'title' && game.player.onLand);
   if (game.state === 'playing') {
     autosaveT -= dt;

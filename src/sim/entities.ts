@@ -46,6 +46,8 @@ export class Organism implements Body {
   fleeX = 0; fleeY = 0;
   /** death / consumption animation */
   dyingT = -1;
+  /** 0..1 binary fission in progress (−1 when not dividing) */
+  divideT = -1;
   eater: Body | null = null;
   eatenByPlayer = false;
   /** has been on screen at least once this life */

@@ -40,6 +40,11 @@ export function npcCanEat(a: Organism, b: Organism): boolean {
   return true;
 }
 
+/** Simple single cells reproduce by binary fission. */
+function canDivide(sp: SpeciesDef): boolean {
+  return !sp.sessile && (sp.look.body === 'cell' || sp.look.body === 'rod') && sp.category !== 'predator' && sp.category !== 'rare';
+}
+
 export class World {
   env: Environment;
   organisms: Organism[] = [];
@@ -131,7 +136,7 @@ export class World {
     o.huntT = 0; o.restT = 0; o.windupT = 0; o.lungeT = 0; o.lungeCd = rand(0.5, 2);
     o.stunT = 0; o.biteCd = 0; o.hurtT = 0; o.revealT = 0;
     o.anchorX = x; o.anchorY = y;
-    o.dyingT = -1; o.eater = null; o.eatenByPlayer = false; o.onScreen = false;
+    o.dyingT = -1; o.divideT = -1; o.eater = null; o.eatenByPlayer = false; o.onScreen = false;
     return o;
   }
 
@@ -301,6 +306,21 @@ export class World {
     this.updateNutrients(dt);
   }
 
+  /** Complete a cell division: two smaller daughters drift apart. */
+  private finishDivision(o: Organism) {
+    const sp = o.sp;
+    const r = Math.max(sp.size[0], o.r * 0.8);
+    const a = o.angle, d = o.r * 0.55;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const kid = this.spawnOrganism(sp, o.x - ca * d, o.y - sa * d, r);
+    o.x += ca * d; o.y += sa * d;
+    o.r = r;
+    o.maxHp = sp.hp * (r / ((sp.size[0] + sp.size[1]) / 2));
+    o.hp = Math.min(o.hp, o.maxHp);
+    o.vx += ca * 20; o.vy += sa * 20;
+    if (kid) { kid.angle = a + Math.PI; kid.vx = -ca * 20; kid.vy = -sa * 20; kid.mode = o.mode === 'school' ? 'school' : 'wander'; }
+  }
+
   private updateDying(o: Organism, dt: number) {
     o.dyingT += dt * (o.eatenByPlayer ? 3.2 : 2.4);
     if (o.eater) {
@@ -338,6 +358,16 @@ export class World {
     const sp = o.sp;
     o.phase += dt;
     o.biteCd -= dt; o.lungeCd -= dt; o.hurtT -= dt; o.revealT -= dt; o.satiety -= dt;
+
+    // binary fission: well-fed single cells near the observer occasionally divide
+    if (o.divideT >= 0) {
+      o.divideT += dt / 1.9;
+      if (o.divideT >= 1) { o.divideT = -1; this.finishDivision(o); }
+    } else if (canDivide(sp) && o.mode !== 'flee' && o.mode !== 'hunt' && Math.random() < dt * 0.012
+      && o.r > (sp.size[0] + sp.size[1]) / 2 && dist2(o.x, o.y, this.cx, this.cy) < this.viewR * this.viewR
+      && this.countAlive() < this.era.populationTarget + 6) {
+      o.divideT = 0;
+    }
 
     // toxin clouds damage & scatter
     for (const c of this.clouds) {

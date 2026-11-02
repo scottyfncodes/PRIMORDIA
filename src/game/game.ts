@@ -30,7 +30,7 @@ export type GameEvent =
   | { type: 'ability'; id: AbilityId; x: number; y: number; r: number }
   | { type: 'mutation'; traitId: string; level: number; first: boolean }
   | { type: 'leap'; era: number; form: FormDef; first: boolean }
-  | { type: 'discover'; kind: 'species' | 'zone' | 'milestone' | 'form'; title: string; sub: string; dna: number }
+  | { type: 'discover'; kind: 'species' | 'zone' | 'milestone' | 'form'; title: string; sub: string; dna: number; speciesId?: string; org?: Organism }
   | { type: 'death'; cause: string }
   | { type: 'npcEat'; x: number; y: number; r: number }
   | { type: 'npcDie'; x: number; y: number; r: number; color: string }
@@ -444,7 +444,7 @@ export class Game {
     this.gainDna(dna);
     if (first) {
       this.run.discoveries.push(o.sp.name);
-      this.events.push({ type: 'discover', kind: 'species', title: o.sp.name, sub: 'New species recorded in the Codex', dna });
+      this.events.push({ type: 'discover', kind: 'species', title: o.sp.name, sub: 'New species recorded in the Codex', dna, speciesId: o.sp.id, org: o });
     }
   }
 
@@ -849,6 +849,7 @@ export class Game {
     this.progress.reachEra(p.eraIndex);
     const first = this.progress.discoverForm(p.form.id);
     this.run.formsReached.push(p.form.name);
+    p.history.push({ era: p.eraIndex, formId: p.form.id, traits: [] });
     this.offers = generateOffers(p.traits, p.eraIndex);
     this.leapBlockedHint = false;
     this.milestone('era' + p.eraIndex);
@@ -907,6 +908,7 @@ export class Game {
     const p = this.player;
     // record form reached at death too
     if (p.eraIndex === 1) this.progress.discoverForm('protocell');
+    this.progress.data.lastLineage = p.history.map((h) => h.formId);
     return this.progress.endRun(this.run.time, this.run.dna, this.run.eaten, this.run.cause || 'starved');
   }
 }

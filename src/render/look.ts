@@ -1,5 +1,5 @@
 /** Data description of how an organism is drawn. Shared by NPC species and the player. */
-export type BodyKind = 'cell' | 'rod' | 'spiral' | 'diatom' | 'colony' | 'polyp' | 'jelly' | 'worm';
+export type BodyKind = 'cell' | 'rod' | 'spiral' | 'diatom' | 'colony' | 'polyp' | 'jelly' | 'worm' | 'swimmer' | 'frond' | 'nautilus';
 
 export interface Look {
   body: BodyKind;
@@ -36,6 +36,17 @@ export interface Look {
   combs?: boolean;
   shellSides?: number;
   cells?: number;
+  /** ── animal body plan (Era IV) ── */
+  segments?: number;
+  fins?: number;
+  tailFin?: number;
+  eyes?: number;
+  claws?: number;
+  carapace?: boolean;
+  fronds?: number;
+  lateral?: boolean;
+  gills?: boolean;
+  ink?: boolean;
 }
 
 export const baseLook = (o: Partial<Look>): Look => ({

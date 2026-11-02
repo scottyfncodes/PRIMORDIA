@@ -53,49 +53,65 @@ export const PLAYER_SPAWN = { x: 3000, y: 1750 };
 
 export class Environment {
   time = 0;
+  /** World scale: the sea grows as the player's lineage grows (Era III+). */
+  scale = 1;
   rocks: Rock[] = [];
   vents: Vent[] = [];
   strands: Strand[] = [];
+  private baseRocks: Rock[] = [];
+  private baseVents: Vent[] = [];
+  private baseStrands: Strand[] = [];
+
+  get w() { return WORLD_W * this.scale; }
+  get h() { return WORLD_H * this.scale; }
 
   constructor(seed = 1337) {
     const rng = makeRng(seed);
     // mineral grains / boulders
     let guard = 0;
-    while (this.rocks.length < 46 && guard++ < 2000) {
+    while (this.baseRocks.length < 46 && guard++ < 2000) {
       const r = 50 + rng() * rng() * 190;
       const x = 150 + rng() * (WORLD_W - 300);
       const y = 250 + rng() * (WORLD_H - 400);
       if (Math.hypot(x - PLAYER_SPAWN.x, y - PLAYER_SPAWN.y) < 600) continue;
-      if (this.rocks.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + r + 160)) continue;
+      if (this.baseRocks.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + r + 160)) continue;
       // fewer rocks in the shallows
       if (y < 1100 && rng() < 0.7) continue;
-      this.rocks.push({ x, y, r, seed: rng() * 1000 });
+      this.baseRocks.push({ x, y, r, seed: rng() * 1000 });
     }
     // hydrothermal vents
     for (let i = 0; i < 9; i++) {
       for (let k = 0; k < 40; k++) {
         const x = 3400 + rng() * 2400, y = 3900 + rng() * 1900;
-        if (this.zoneAt(x, y) !== 'vents') continue;
-        if (this.vents.some((v) => Math.hypot(v.x - x, v.y - y) < 420)) continue;
-        if (this.rocks.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + 80)) continue;
-        this.vents.push({ x, y, r: 55 + rng() * 35, phase: rng() * TAU });
+        if (this.baseZoneAt(x, y) !== 'vents') continue;
+        if (this.baseVents.some((v) => Math.hypot(v.x - x, v.y - y) < 420)) continue;
+        if (this.baseRocks.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + 80)) continue;
+        this.baseVents.push({ x, y, r: 55 + rng() * 35, phase: rng() * TAU });
         break;
       }
     }
     // biofilm strands
     for (let i = 0; i < 260; i++) {
       const x = rng() * 2800, y = 1500 + rng() * 2800;
-      if (this.zoneAt(x, y) !== 'thicket') continue;
-      this.strands.push({ x, y, len: 120 + rng() * 380, angle: rng() * TAU, bend: (rng() - 0.5) * 2, seed: rng() * 100, w: 2 + rng() * 6 });
+      if (this.baseZoneAt(x, y) !== 'thicket') continue;
+      this.baseStrands.push({ x, y, len: 120 + rng() * 380, angle: rng() * TAU, bend: (rng() - 0.5) * 2, seed: rng() * 100, w: 2 + rng() * 6 });
     }
+    this.setScale(1);
+  }
+
+  /** Rescale the whole sea (geography keeps its shape, everything gets bigger). */
+  setScale(k: number) {
+    this.scale = k;
+    this.rocks = this.baseRocks.map((r) => ({ ...r, x: r.x * k, y: r.y * k, r: r.r * k }));
+    this.vents = this.baseVents.map((v) => ({ ...v, x: v.x * k, y: v.y * k, r: v.r * k }));
+    this.strands = this.baseStrands.map((s) => ({ ...s, x: s.x * k, y: s.y * k, len: s.len * k, w: s.w * k }));
   }
 
   update(dt: number) {
     this.time += dt;
   }
 
-  /** Voronoi zone lookup. */
-  zoneAt(x: number, y: number): ZoneId {
+  private baseZoneAt(x: number, y: number): ZoneId {
     let best = SEEDS[0], bd = Infinity;
     for (const s of SEEDS) {
       const d = (s.x - x) ** 2 + (s.y - y) ** 2;
@@ -104,8 +120,12 @@ export class Environment {
     return best.z;
   }
 
-  /** Inverse-distance weighted zone blend, used for smooth ambient colour. */
-  zoneWeights(x: number, y: number, out: Partial<Record<ZoneId, number>> = {}) {
+  /** Voronoi zone lookup. */
+  zoneAt(x: number, y: number): ZoneId {
+    return this.baseZoneAt(x / this.scale, y / this.scale);
+  }
+
+  private baseWeights(x: number, y: number, out: Partial<Record<ZoneId, number>>) {
     for (const k of Object.keys(ZONES) as ZoneId[]) out[k] = 0;
     let total = 0;
     for (const s of SEEDS) {
@@ -118,10 +138,16 @@ export class Environment {
     return out as Record<ZoneId, number>;
   }
 
+  /** Inverse-distance weighted zone blend, used for smooth ambient colour. */
+  zoneWeights(x: number, y: number, out: Partial<Record<ZoneId, number>> = {}) {
+    return this.baseWeights(x / this.scale, y / this.scale, out);
+  }
+
   /** Light availability 0..1 (depth gradient × zone × drifting light shafts). */
   light(x: number, y: number): number {
+    x /= this.scale; y /= this.scale;
     const depth = clamp(1.15 - y / (WORLD_H * 0.62), 0.03, 1);
-    const w = this.zoneWeights(x, y, this._zw);
+    const w = this.baseWeights(x, y, this._zw);
     let zl = 0;
     for (const k in w) zl += w[k as ZoneId] * ZONES[k as ZoneId].light;
     const shaft = y < 2600 ? 0.18 * Math.max(0, Math.sin(x * 0.0021 + this.time * 0.07) * Math.sin(x * 0.0007 - this.time * 0.03)) : 0;
@@ -131,14 +157,15 @@ export class Environment {
 
   /** Water current vector at a point (units / s). */
   current(x: number, y: number, out: { x: number; y: number }) {
+    x /= this.scale; y /= this.scale;
     const t = this.time;
-    const w = this.zoneWeights(x, y, this._zw);
+    const w = this.baseWeights(x, y, this._zw);
     let strength = 0;
     for (const k in w) strength += w[k as ZoneId] * ZONES[k as ZoneId].current;
     // a meandering eastward gyre with swirls
     const a = Math.sin(y * 0.0011 + t * 0.05) * 1.2 + Math.cos(x * 0.0009 - t * 0.04) * 0.8;
-    const s = 22 * strength;
-    out.x = Math.cos(a) * s + 10 * strength;
+    const s = 22 * strength * this.scale;
+    out.x = Math.cos(a) * s + 10 * strength * this.scale;
     out.y = Math.sin(a) * s * 0.6;
     return out;
   }
@@ -163,6 +190,6 @@ export class Environment {
     const w = this.zoneWeights(x, y, this._zw);
     let d = 0;
     for (const k in w) d += w[k as ZoneId] * ZONES[k as ZoneId].darkness;
-    return clamp(d + smoothstep(3800, 6000, y) * 0.25, 0, 0.92);
+    return clamp(d + smoothstep(3800, 6000, y / this.scale) * 0.25, 0, 0.92);
   }
 }

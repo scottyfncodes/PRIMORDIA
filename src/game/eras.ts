@@ -16,15 +16,17 @@ export interface EraDef {
   nutrientEnergy: number;
   dnaMoteChance: number;
   populationTarget: number;
+  /** size of the sea relative to Era I (the world rescales at the leap) */
+  worldScale: number;
 }
 
 export const ERAS: EraDef[] = [
-  { index: 1, numeral: 'I', name: 'Primordial Life', subtitle: 'Single cells in a young sea', playable: true, minR: 10, maxR: 20, growthNeeded: 300, mutationsToLeap: 2, drain: 1.25, nutrientR: 2.6, nutrientEnergy: 3.2, dnaMoteChance: 0.06, populationTarget: 64 },
-  { index: 2, numeral: 'II', name: 'Complex Cells', subtitle: 'Nuclei, organelles and new ways to eat', playable: true, minR: 24, maxR: 46, growthNeeded: 1250, mutationsToLeap: 5, drain: 1.7, nutrientR: 5, nutrientEnergy: 4.2, dnaMoteChance: 0.045, populationTarget: 60 },
-  { index: 3, numeral: 'III', name: 'Multicellular Life', subtitle: 'Many cells, one body', playable: true, minR: 56, maxR: 104, growthNeeded: 3200, mutationsToLeap: 99, drain: 2.2, nutrientR: 10, nutrientEnergy: 5.5, dnaMoteChance: 0.035, populationTarget: 54 },
-  { index: 4, numeral: 'IV', name: 'Early Aquatic Life', subtitle: 'Primitive swimmers, hunters and the first eyes', playable: false, minR: 0, maxR: 0, growthNeeded: 0, mutationsToLeap: 0, drain: 0, nutrientR: 0, nutrientEnergy: 0, dnaMoteChance: 0, populationTarget: 0 },
-  { index: 5, numeral: 'V', name: 'Vertebrate Life', subtitle: 'Backbones, fins and complex predators', playable: false, minR: 0, maxR: 0, growthNeeded: 0, mutationsToLeap: 0, drain: 0, nutrientR: 0, nutrientEnergy: 0, dnaMoteChance: 0, populationTarget: 0 },
-  { index: 6, numeral: 'VI', name: 'Land Transition', subtitle: 'A new world above the water', playable: false, minR: 0, maxR: 0, growthNeeded: 0, mutationsToLeap: 0, drain: 0, nutrientR: 0, nutrientEnergy: 0, dnaMoteChance: 0, populationTarget: 0 },
+  { index: 1, numeral: 'I', name: 'Primordial Life', subtitle: 'Single cells in a young sea', playable: true, minR: 10, maxR: 20, growthNeeded: 300, mutationsToLeap: 2, drain: 1.25, nutrientR: 2.6, nutrientEnergy: 3.2, dnaMoteChance: 0.06, populationTarget: 64, worldScale: 1 },
+  { index: 2, numeral: 'II', name: 'Complex Cells', subtitle: 'Nuclei, organelles and new ways to eat', playable: true, minR: 24, maxR: 46, growthNeeded: 1250, mutationsToLeap: 5, drain: 1.7, nutrientR: 5, nutrientEnergy: 4.2, dnaMoteChance: 0.045, populationTarget: 60, worldScale: 1 },
+  { index: 3, numeral: 'III', name: 'Multicellular Life', subtitle: 'Many cells, one body', playable: true, minR: 56, maxR: 104, growthNeeded: 3200, mutationsToLeap: 9, drain: 2.2, nutrientR: 10, nutrientEnergy: 5.5, dnaMoteChance: 0.035, populationTarget: 54, worldScale: 2 },
+  { index: 4, numeral: 'IV', name: 'Early Aquatic Life', subtitle: 'Primitive swimmers, hunters and the first eyes', playable: true, minR: 112, maxR: 200, growthNeeded: 6000, mutationsToLeap: 99, drain: 2.8, nutrientR: 20, nutrientEnergy: 7, dnaMoteChance: 0.03, populationTarget: 46, worldScale: 4 },
+  { index: 5, numeral: 'V', name: 'Vertebrate Life', subtitle: 'Backbones, fins and complex predators', playable: false, minR: 0, maxR: 0, growthNeeded: 0, mutationsToLeap: 0, drain: 0, nutrientR: 0, nutrientEnergy: 0, dnaMoteChance: 0, populationTarget: 0, worldScale: 4 },
+  { index: 6, numeral: 'VI', name: 'Land Transition', subtitle: 'A new world above the water', playable: false, minR: 0, maxR: 0, growthNeeded: 0, mutationsToLeap: 0, drain: 0, nutrientR: 0, nutrientEnergy: 0, dnaMoteChance: 0, populationTarget: 0, worldScale: 4 },
 ];
 
 export const MAX_PLAYABLE_ERA = ERAS.filter((e) => e.playable).length;
@@ -67,7 +69,21 @@ export const FORMS: FormDef[] = [
   { id: 'e3-defender', era: 3, archetype: 'defender', name: 'Sponge Fortress', desc: 'A porous, walled colony that filters the sea and fears very little.', shape: (l) => { l.pores = 12; l.plates = Math.max(l.plates || 0, 2); l.nucleus = null; l.cells = 7; l.wobble *= 0.5; } },
   { id: 'e3-opportunist', era: 3, archetype: 'opportunist', name: 'Swarm Colony', desc: 'A loose federation of cells that flows around obstacles and food alike.', shape: (l) => { l.lobes = Math.max(l.lobes, 5); l.lobeAmp = Math.max(l.lobeAmp, 0.12); l.nucleus = null; l.cells = 13; } },
   { id: 'e3-phototroph', era: 3, archetype: 'phototroph', name: 'Volvocine Sun-Sphere', desc: 'A radiant sphere of green cells, turning gently toward the light.', shape: (l) => { l.nucleus = null; l.cells = 16; l.chloro = (l.chloro || 0) + 4; l.wobble *= 0.6; } },
+
+  { id: 'e4-predator', era: 4, archetype: 'predator', name: 'Clawed Hunter', desc: 'A true animal hunter: forward-facing eyes, grasping claws and a powerful tail.', shape: (l) => { swimmer(l); l.claws = Math.max(l.claws || 0, 1); l.eyes = Math.max(l.eyes || 0, 2); l.fins = (l.fins || 0) + 2; l.tailFin = (l.tailFin || 0) + 1; l.segments = 8; } },
+  { id: 'e4-defender', era: 4, archetype: 'defender', name: 'Armoured Crawler', desc: 'Jointed plates from head to tail. Predators break their mouths on it.', shape: (l) => { swimmer(l); l.carapace = true; l.segments = 9; l.eyes = Math.max(l.eyes || 0, 1); l.fins = (l.fins || 0) + 1; l.tailFin = (l.tailFin || 0) + 0.5; l.elong = Math.min(l.elong, 0.3); } },
+  { id: 'e4-opportunist', era: 4, archetype: 'opportunist', name: 'Finned Forager', desc: 'Quick, nimble and never picky — a body built to turn and to taste the water.', shape: (l) => { swimmer(l); l.fins = (l.fins || 0) + 3; l.tailFin = (l.tailFin || 0) + 1.1; l.eyes = Math.max(l.eyes || 0, 1); l.segments = 7; l.receptors = 2; } },
+  { id: 'e4-phototroph', era: 4, archetype: 'phototroph', name: 'Frond Glider', desc: 'A gliding animal draped in living, sun-drinking fronds.', shape: (l) => { swimmer(l); l.fronds = (l.fronds || 0) + 4; l.fins = (l.fins || 0) + 2; l.eyes = Math.max(l.eyes || 0, 1); l.segments = 7; l.tailFin = (l.tailFin || 0) + 0.6; } },
 ];
+
+/** Shared Era IV animal body plan. */
+function swimmer(l: Look) {
+  l.body = 'swimmer';
+  l.nucleus = null; l.nucleoid = false; l.cells = 0; l.pores = 0;
+  l.lobes = 0; l.lobeAmp = 0; l.slipper = 0;
+  l.elong = Math.min(1.2, 0.5 + l.elong * 0.3);
+  l.wobble = 0.02;
+}
 
 export const FORM_BY_ID: Record<string, FormDef> = Object.fromEntries(FORMS.map((f) => [f.id, f]));
 

@@ -42,6 +42,8 @@ export class Input {
       if (k === 'e' || k === '2') this.queueSlot(1);
       if (k === 'r' || k === '3') this.queueSlot(2);
       if (k === 'f' || k === '4') this.queueSlot(3);
+      if (k === 't' || k === '5') this.queueSlot(4);
+      if (k === 'g' || k === '6') this.queueSlot(5);
       if (k === 'escape' || k === 'p') this.onPause?.();
       if (k === 'v' || k === 'enter') this.onEvolveKey?.();
     });

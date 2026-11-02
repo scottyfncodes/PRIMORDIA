@@ -100,6 +100,8 @@ function handleEvents() {
         if (e.id === 'toxin') fx.burst(e.x, e.y, 30, '#c77dff', p.r * 5, p.r * 0.3);
         if (e.id === 'harden') fx.ring(e.x, e.y, p.r * 1.6, p.r * 1.1, '#fff2c0', 0.4);
         if (e.id === 'engulf') fx.ring(e.x, e.y, p.r, p.r * 1.6, p.look.membrane, 0.3);
+        if (e.id === 'strike') fx.bubbles(e.x, e.y, 8, p.r * 0.5);
+        if (e.id === 'ink') fx.bubbles(e.x, e.y, 10, p.r * 0.6);
         audio.ability(e.id);
         break;
       case 'mutation': {
@@ -116,7 +118,8 @@ function handleEvents() {
         renderer.cam.shake = 0.6;
         fx.burst(p.x, p.y, 70, p.look.glow, p.r * 9, p.r * 0.3);
         fx.ring(p.x, p.y, p.r, p.r * 9, '#ffffff', 1.4);
-        renderer.cam.zoom *= 1.9; // pull back to reveal the bigger world
+        renderer.cam.x = p.x; renderer.cam.y = p.y; // the sea may have been rescaled
+        renderer.cam.zoom = renderer.bodyZoom(game) * 1.9; // pull back to reveal the bigger world
         audio.leap();
         break;
       case 'discover':
@@ -137,6 +140,13 @@ function handleEvents() {
       case 'heat':
         fx.bubbles(e.x, e.y, 3, p.r * 0.5);
         audio.heat();
+        break;
+      case 'strikeHit':
+        fx.shards(e.x, e.y, 14, '#ffe0c0', e.r * 4, e.r * 0.12);
+        fx.ring(e.x, e.y, e.r * 0.6, e.r * 1.8, '#ffffff', 0.35);
+        renderer.cam.shake = Math.max(renderer.cam.shake, 0.45);
+        audio.strike(e.kill);
+        if (!e.kill) fx.text(e.x, e.y - e.r, 'Wounded', '#ffd0b0', textSize);
         break;
       case 'satellitePop':
         fx.burst(e.x, e.y, 12, p.look.glow, p.r * 3, p.r * 0.15);
@@ -204,7 +214,7 @@ function frame(now: number) {
   if (game.state !== 'title') ui.updateHud(dt);
   hudEl.classList.toggle('dim', game.state !== 'playing');
   ui.tick(now / 1000);
-  audio.update(dt, game.state === 'playing' ? game.danger : 0, game.env.light(renderer.cam.x, renderer.cam.y), renderer.cam.y / 6000, game.state === 'playing');
+  audio.update(dt, game.state === 'playing' ? game.danger : 0, game.env.light(renderer.cam.x, renderer.cam.y), renderer.cam.y / game.env.h, game.state === 'playing');
 }
 
 window.addEventListener('resize', () => renderer.resize());

@@ -127,10 +127,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .act.pressed { animation: press 0.25s ease; }
 @keyframes press { 40% { transform: scale(0.88); } }
 .ability { width: 58px; height: 58px; }
-.ability:nth-child(1) { right: 96px; bottom: 6px; }
-.ability:nth-child(2) { right: 76px; bottom: 76px; }
-.ability:nth-child(3) { right: 8px; bottom: 98px; }
-.ability:nth-child(4) { right: 132px; bottom: 112px; }
+.a-strike .ic { color: #ffd0a0; } .a-ink .ic { color: #8a7aff; }
 .a-engulf .ic { color: #ffb0e0; } .a-harden .ic { color: #ffe0a0; } .a-pulse .ic { color: #fff4c0; } .a-toxin .ic { color: var(--violet); }
 .ability.cooling .ic { opacity: 0.5; }
 

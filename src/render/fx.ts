@@ -1,7 +1,7 @@
 import { rand, rgba, TAU } from '../engine/math';
 import { drawGlow } from './sprites';
 
-type Kind = 'spark' | 'ring' | 'bubble' | 'text' | 'shard';
+type Kind = 'spark' | 'ring' | 'bubble' | 'text' | 'shard' | 'beam';
 
 interface P {
   active: boolean;
@@ -12,24 +12,30 @@ interface P {
   color: string;
   text: string;
   drag: number;
+  ex: number; ey: number;
 }
 
 /** Pooled world-space particle effects. */
 export class Fx {
   private pool: P[] = [];
   constructor(n = 700) {
-    for (let i = 0; i < n; i++) this.pool.push({ active: false, kind: 'spark', x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 1, size: 1, grow: 0, color: '#fff', text: '', drag: 2 });
+    for (let i = 0; i < n; i++) this.pool.push({ active: false, kind: 'spark', x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 1, size: 1, grow: 0, color: '#fff', text: '', drag: 2, ex: 0, ey: 0 });
   }
   private get(): P | null {
     for (const p of this.pool) if (!p.active) return p;
     return null;
   }
-  spawn(kind: Kind, x: number, y: number, o: Partial<P> = {}) {
+  spawn(kind: Kind, x: number, y: number, o: Partial<P> = {}): P | null {
     const p = this.get();
-    if (!p) return;
+    if (!p) return null;
     p.active = true; p.kind = kind; p.x = x; p.y = y;
     p.vx = o.vx ?? 0; p.vy = o.vy ?? 0; p.life = 0; p.max = o.max ?? 0.8;
     p.size = o.size ?? 2; p.grow = o.grow ?? 0; p.color = o.color ?? '#ffffff'; p.text = o.text ?? ''; p.drag = o.drag ?? 2.5;
+    return p;
+  }
+  beam(x1: number, y1: number, x2: number, y2: number, color: string, width: number, max = 0.25) {
+    const p = this.spawn('beam', x1, y1, { size: width, max, color, drag: 0 });
+    if (p) { p.ex = x2; p.ey = y2; }
   }
   burst(x: number, y: number, n: number, color: string, speed: number, size: number) {
     for (let i = 0; i < n; i++) {
@@ -91,6 +97,12 @@ export class Fx {
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.life * 8 + p.size);
         ctx.fillRect(-p.size, -p.size * 0.3, p.size * 2, p.size * 0.6);
         ctx.restore();
+      } else if (p.kind === 'beam') {
+        ctx.strokeStyle = rgba(p.color, 0.9 * k);
+        ctx.lineCap = 'round';
+        ctx.lineWidth = p.size * k;
+        const ext = Math.min(1, p.life / (p.max * 0.35));
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + (p.ex - p.x) * ext, p.y + (p.ey - p.y) * ext); ctx.stroke();
       } else if (p.kind === 'text') {
         const a = p.life < 0.15 ? p.life / 0.15 : k;
         ctx.font = `600 ${p.size}px Outfit, system-ui, sans-serif`;

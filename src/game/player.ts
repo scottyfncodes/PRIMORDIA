@@ -15,6 +15,11 @@ export class Player {
   /** mutations gained during the current era (weights the next leap's form) */
   recentTraits: TraitLevels = {};
   stillT = 0;
+  /** 0..1 air held while out of water */
+  breath = 1;
+  onLand = false;
+  eggsUsed = 0;
+  landT = 0;
   stats: Stats = deriveStats({});
   eraIndex = 1;
   form: FormDef = formFor(1, 'opportunist');
@@ -26,7 +31,7 @@ export class Player {
   alive = true;
 
   burstT = 0; burstCd = 0;
-  cooldowns: Record<AbilityId, number> = { engulf: 0, harden: 0, pulse: 0, toxin: 0, strike: 0, ink: 0 };
+  cooldowns: Record<AbilityId, number> = { engulf: 0, harden: 0, pulse: 0, toxin: 0, strike: 0, ink: 0, tongue: 0 };
   engulfT = 0; hardenT = 0; pulseT = -1; strikeT = 0; hiddenT = 0;
   hurtT = 0; sinceHurt = 99; eatPulse = 0; growPulse = 0; transformT = -1;
   spinyCd = 0; heatT = 0;
@@ -44,13 +49,13 @@ export class Player {
 
   reset(x: number, y: number) {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0;
-    this.traits = {}; this.traitOrder = []; this.recentTraits = {}; this.stillT = 0;
+    this.traits = {}; this.traitOrder = []; this.recentTraits = {}; this.stillT = 0; this.breath = 1; this.onLand = false; this.eggsUsed = 0; this.landT = 0;
     this.eraIndex = 1;
     this.r = this.targetR = ERAS[0].minR;
     this.growth = 0; this.dna = 0; this.dnaTotal = 0;
     this.alive = true;
     this.burstT = 0; this.burstCd = 0;
-    this.cooldowns = { engulf: 0, harden: 0, pulse: 0, toxin: 0, strike: 0, ink: 0 };
+    this.cooldowns = { engulf: 0, harden: 0, pulse: 0, toxin: 0, strike: 0, ink: 0, tongue: 0 };
     this.engulfT = 0; this.hardenT = 0; this.pulseT = -1; this.strikeT = 0; this.hiddenT = 0;
     this.hurtT = 0; this.sinceHurt = 99; this.eatPulse = 0; this.growPulse = 0; this.transformT = -1;
     this.trail = [];

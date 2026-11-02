@@ -16,6 +16,8 @@ export interface PlayerLike extends Body {
   hidden: boolean;
   /** multiplies predator wind-up time against the player (eyes / lateral line) */
   reaction: number;
+  /** the player is out of the water (sea hunters cannot follow) */
+  onLand: boolean;
 }
 
 export interface ToxinCloud { x: number; y: number; r: number; t: number; life: number; dps: number; kind: 'toxin' | 'ink' }
@@ -225,6 +227,7 @@ export class World {
     const schoolSize = sp.schooling > 0.5 ? 2 + Math.floor(Math.random() * 4) : 1;
     for (let i = 0; i < schoolSize; i++) {
       const ox = x + rand(-1, 1) * sp.size[1] * 4, oy = y + rand(-1, 1) * sp.size[1] * 4;
+      if (this.env.land && sp.habitat !== 'both' && this.env.isLand(ox, oy) !== (sp.habitat === 'land')) continue;
       this.spawnOrganism(sp, ox, oy);
     }
   }
@@ -445,8 +448,20 @@ export class World {
 
     this.env.current(o.x, o.y, this.cur);
     const cf = sp.sessile ? 0 : 0.7;
+    const px = o.x, py = o.y;
     o.x += (o.vx + this.cur.x * cf) * dt;
     o.y += (o.vy + this.cur.y * cf) * dt;
+    // habitat: sea life stays in the sea, land life stays ashore
+    if (this.env.land && sp.habitat !== 'both') {
+      const onLand = this.env.isLand(o.x, o.y);
+      if (onLand !== (sp.habitat === 'land')) {
+        o.x = px; o.y = py;
+        o.vx *= -0.5; o.vy *= -0.5;
+        o.wanderA += Math.PI * (0.6 + Math.random() * 0.8);
+        o.lungeT = 0;
+        if (o.targetIsPlayer) { o.target = null; o.targetIsPlayer = false; o.mode = 'wander'; o.restT = 2.5; o.huntT = 0; }
+      }
+    }
 
     const sp2 = o.vx * o.vx + o.vy * o.vy;
     if (sp2 > 4) {
@@ -458,6 +473,13 @@ export class World {
 
     this.collideRocks(o);
     this.interact(o, dt);
+  }
+
+  /** Can this organism follow the player into their current habitat? */
+  canReach(o: Organism, p: PlayerLike) {
+    if (!this.env.land) return true;
+    const h = o.sp.habitat || 'water';
+    return h === 'both' || (h === 'land') === p.onLand;
   }
 
   collideRocks(b: Body) {
@@ -516,7 +538,7 @@ export class World {
       // keep existing player hunt for a while, then give up (fairness)
       if (o.mode === 'hunt' && o.targetIsPlayer) {
         o.huntT += 0.15;
-        if (o.huntT > 9 || !p.alive || p.hidden) { o.mode = 'wander'; o.target = null; o.targetIsPlayer = false; o.restT = 3.5; o.huntT = 0; return; }
+        if (o.huntT > 9 || !p.alive || p.hidden || !this.canReach(o, p)) { o.mode = 'wander'; o.target = null; o.targetIsPlayer = false; o.restT = 3.5; o.huntT = 0; return; }
         const giveUp = sight * 1.6 * p.detectability;
         if (dist2(p.x, p.y, o.x, o.y) > giveUp * giveUp) { o.mode = 'wander'; o.target = null; o.targetIsPlayer = false; return; }
         return;
@@ -528,7 +550,7 @@ export class World {
         if (d < bd) { bd = d; best = q; }
       }
       // the player as prey
-      if (p.alive && !p.hidden && p.r <= o.r * (sp.category === 'predator' ? 0.95 : 0.7)) {
+      if (p.alive && !p.hidden && this.canReach(o, p) && p.r <= o.r * (sp.category === 'predator' ? 0.95 : 0.7)) {
         const pr = sight * p.detectability;
         const d = dist2(p.x, p.y, o.x, o.y);
         const keen = sp.aggression * (1 - p.predatorDeter);

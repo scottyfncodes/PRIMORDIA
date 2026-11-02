@@ -2,7 +2,7 @@
 
 A mobile-first evolutionary survival arcade game. Begin as a single cell in a primordial sea — explore, eat, grow, mutate, evolve, survive.
 
-**Playable eras:** I Primordial Life → II Complex Cells → III Multicellular Life → IV Early Aquatic Life (animal body plans: eyes, fins, claws, carapace, ink) → V Vertebrate Life (jaws, scales, lobe fins, electroreception, sharks and armoured titans). Era VI is declared for a future release.
+**Playable eras:** I Primordial Life → II Complex Cells → III Multicellular Life → IV Early Aquatic Life (animal body plans: eyes, fins, claws, carapace, ink) → V Vertebrate Life (jaws, scales, lobe fins, electroreception, sharks and armoured titans) → VI Land Transition (a coastline appears: breath, legs, lungs and a land ecosystem).
 
 ## Play
 - **iPhone / touch:** drag on the left of the screen to swim (floating joystick). Buttons on the right: **Burst** plus any abilities you evolve. Tap the glowing **DNA helix** to evolve.
@@ -13,7 +13,7 @@ A mobile-first evolutionary survival arcade game. Begin as a single cell in a pr
 npm install
 npm run dev      # local dev server
 npm test         # unit tests
-npm run test:balance  # autopilot runs of every lineage (BOT_SECONDS=2100 to reach Era V)
+npm run test:balance  # autopilot runs of every lineage (BOT_SECONDS=3000 to reach Era VI)
 npm run build    # typecheck + production build to dist/
 ```
 

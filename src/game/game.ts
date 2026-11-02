@@ -36,7 +36,9 @@ export type GameEvent =
   | { type: 'hint'; text: string; id: string }
   | { type: 'heat'; x: number; y: number }
   | { type: 'satellitePop'; x: number; y: number }
-  | { type: 'strikeHit'; x: number; y: number; r: number; kill: boolean };
+  | { type: 'strikeHit'; x: number; y: number; r: number; kill: boolean }
+  | { type: 'tongue'; x1: number; y1: number; x2: number; y2: number }
+  | { type: 'revive'; x: number; y: number };
 
 export interface RunStats {
   time: number;
@@ -75,6 +77,10 @@ export const MILESTONES: Record<string, { name: string; desc: string; dna: numbe
   era3: { name: 'Many Become One', desc: 'Became multicellular (Era III).', dna: 0 },
   era4: { name: 'The Cambrian Explosion', desc: 'Became an early animal (Era IV).', dna: 0 },
   era5: { name: 'Age of Fishes', desc: 'Grew a backbone (Era V).', dna: 0 },
+  era6: { name: 'First Steps', desc: 'Reached the Land Transition (Era VI).', dna: 0 },
+  landfall: { name: 'Landfall', desc: 'Crawled out of the sea onto dry land.', dna: 40 },
+  walker: { name: 'A Life Ashore', desc: 'Spent 60 seconds on land in one life.', dna: 40 },
+  clutch: { name: 'The Line Goes On', desc: 'Hatched from your own clutch after dying.', dna: 20 },
   titan: { name: 'Giant Slayer', desc: 'Brought down an Iron-Jaw Titan.', dna: 60 },
   frontier: { name: 'Edge of the Known', desc: 'Reached full size in the last charted era.', dna: 25 },
   apex: { name: 'Apex Predator', desc: 'Took down a Clawed Raptor.', dna: 30 },
@@ -121,11 +127,13 @@ export class Game {
       lure: p.stats.lure,
       hidden: p.hiddenT > 0 || (p.stats.stealth > 0 && p.stillT > 0.6),
       reaction: p.stats.reaction,
+      onLand: p.onLand,
     };
   }
 
   newRun() {
     this.env.setScale(1);
+    this.env.land = false;
     this.player.reset(PLAYER_SPAWN.x + rand(-80, 80), PLAYER_SPAWN.y + rand(-80, 80));
     this.world.reset(ERAS[0]);
     this.player.form = formFor(1, 'opportunist');
@@ -171,6 +179,7 @@ export class Game {
   startAttract() {
     this.state = 'title';
     this.env.setScale(1);
+    this.env.land = false;
     this.world.reset(ERAS[0]);
     this.world.runTime = 120;
     this.world.cx = PLAYER_SPAWN.x; this.world.cy = PLAYER_SPAWN.y;
@@ -180,7 +189,7 @@ export class Game {
   updateAttract(dt: number, cx: number, cy: number) {
     this.env.update(dt);
     this.world.cx = cx; this.world.cy = cy; this.world.viewR = this.viewR;
-    const ghost: PlayerLike = { x: -9999, y: -9999, vx: 0, vy: 0, r: 1, alive: false, threatRatio: 0, predatorDeter: 0, detectability: 0, lure: 0, hidden: true, reaction: 1 };
+    const ghost: PlayerLike = { x: -9999, y: -9999, vx: 0, vy: 0, r: 1, alive: false, threatRatio: 0, predatorDeter: 0, detectability: 0, lure: 0, hidden: true, reaction: 1, onLand: false };
     this.world.update(dt, ghost);
     this.world.events.length = 0;
   }
@@ -221,7 +230,11 @@ export class Game {
     let mx = input.mx, my = input.my;
     const ml = Math.hypot(mx, my);
     if (ml > 1) { mx /= ml; my /= ml; }
-    const maxS = p.maxSpeed * (p.burstT > 0 ? 1 + 1.1 * st.burstPower : 1);
+    const wasLand = p.onLand;
+    p.onLand = env.isLand(p.x, p.y);
+    if (p.onLand && !wasLand) this.onLandfall();
+    const terrain = p.onLand ? st.landSpeed : 1;
+    const maxS = p.maxSpeed * terrain * (p.burstT > 0 ? 1 + 1.1 * st.burstPower : 1);
     const accel = maxS * 3.2 * st.accel;
     const tx = mx * maxS, ty = my * maxS;
     let ex = tx - p.vx, ey = ty - p.vy;
@@ -231,7 +244,7 @@ export class Game {
     if (ml > 0.05) { p.vx += ex; p.vy += ey; }
     // drag: flagellates glide, ciliates stop on a dime
     const dens = env.density(p.x, p.y) * (st.thicketImmune ? 0 : 1);
-    const drag = (ml > 0.05 ? 0.4 : st.drag) + dens * 2.6;
+    const drag = (ml > 0.05 ? 0.4 : st.drag) + dens * 2.6 + (p.onLand ? 2 : 0);
     p.vx *= Math.exp(-drag * dt);
     p.vy *= Math.exp(-drag * dt);
     env.current(p.x, p.y, this.cur);
@@ -347,6 +360,22 @@ export class Game {
       if (best) { const d = Math.hypot(best.x - p.x, best.y - p.y) || 1; ax = (best.x - p.x) / d; ay = (best.y - p.y) / d; p.angle = Math.atan2(ay, ax); }
       const imp = p.maxSpeed * 2.1;
       p.vx = ax * imp; p.vy = ay * imp;
+    } else if (id === 'tongue') {
+      // snatch the nearest small prey within reach, ignoring the chase
+      const reach = p.r * 5.5;
+      let best: Organism | null = null, bd = Infinity;
+      for (const o of this.world.queryOrganisms(p.x, p.y, reach, this.tmp)) {
+        if (o.dyingT >= 0 || o.r > p.r * 0.7 || this.canEat(o) !== 'ok') continue;
+        const d = dist2(o.x, o.y, p.x, p.y);
+        if (d < bd) { bd = d; best = o; }
+      }
+      if (best) {
+        this.events.push({ type: 'tongue', x1: p.x, y1: p.y, x2: best.x, y2: best.y });
+        this.consume(best);
+      } else {
+        this.events.push({ type: 'tongue', x1: p.x, y1: p.y, x2: p.x + Math.cos(p.angle) * reach * 0.7, y2: p.y + Math.sin(p.angle) * reach * 0.7 });
+        p.cooldowns.tongue = 0.6;
+      }
     } else if (id === 'ink') {
       this.world.addCloud(p.x, p.y, p.r * 6, 0, 'ink');
       p.hiddenT = 2.8;
@@ -573,6 +602,28 @@ export class Game {
     }
     p.energy -= drain * dt;
     if (p.energy > p.maxEnergy) p.energy = p.maxEnergy;
+    // breath: out of the water you can only hold it so long
+    if (this.env.land) {
+      if (p.onLand) {
+        p.landT += dt;
+        p.breath -= st.breathDrain * dt;
+        if (st.bask > 0) {
+          const still = Math.hypot(p.vx, p.vy) < p.maxSpeed * 0.3 ? 1 : 0.35;
+          const gain = st.bask * (e.drain / 1.25) * still * dt;
+          p.energy += gain; this.run.photoEnergy += gain;
+          p.energy += drain * 0.15 * dt;
+        }
+        if (p.breath < 0.35) this.hint('!breath', 'Running out of air! Get back into the water — or evolve Lungs', true);
+      } else {
+        p.breath = Math.min(1, p.breath + dt * 0.6);
+      }
+      if (p.breath <= 0) {
+        p.breath = 0;
+        p.hp -= p.maxHp * 0.14 * dt;
+        p.sinceHurt = 0; p.hurtT = Math.max(p.hurtT, 0.15);
+        this.run.lastDamage = { cause: 'suffocated', t: this.run.time, sp: null };
+      }
+    }
     if (p.energy <= 0) {
       p.energy = 0;
       p.hp -= p.maxHp * 0.07 * dt;
@@ -629,6 +680,7 @@ export class Game {
         if (r.zones.size === 5) this.milestone('explorer');
       }
     }
+    if (p.landT > 60) this.milestone('walker');
     if (r.time > 120) this.milestone('survive_120');
     if (r.time > 300) this.milestone('survive_300');
     if (r.time > 600) this.milestone('survive_600');
@@ -680,7 +732,7 @@ export class Game {
     } else if (p.growthFrac >= 1 && p.eraIndex === MAX_PLAYABLE_ERA && !this.frontierShown) {
       this.frontierShown = true;
       this.milestone('frontier');
-      this.events.push({ type: 'hint', id: 'frontier', text: `You have reached the edge of the known. Era ${ERAS[MAX_PLAYABLE_ERA].numeral} awaits in a future evolution of PRIMORDIA.` });
+      this.events.push({ type: 'hint', id: 'frontier', text: ERAS[MAX_PLAYABLE_ERA] ? `You have reached the edge of the known. Era ${ERAS[MAX_PLAYABLE_ERA].numeral} awaits in a future evolution of PRIMORDIA.` : 'You have walked out of the sea and grown to your full size. The story of life on land is only beginning.' });
     }
   }
 
@@ -751,6 +803,13 @@ export class Game {
       for (const sat of p.satellites) { sat.x = p.x; sat.y = p.y; }
       this.world.clearLife();
     }
+    // Era VI: the sea gains a shoreline and dry land
+    this.env.land = p.eraIndex >= 6;
+    if (this.env.land) {
+      let guard = 0;
+      while (this.env.isLand(p.x, p.y) && guard++ < 200) p.y += p.r;
+      p.breath = 1;
+    }
     this.world.setEra(p.era);
     this.world.cx = p.x; this.world.cy = p.y;
     // the camera pulls back after a leap; size the spawn bubble for the new body
@@ -773,9 +832,33 @@ export class Game {
   pause() { if (this.state === 'playing') this.state = 'paused'; }
   resume() { if (this.state === 'paused') this.state = 'playing'; }
 
+  private onLandfall() {
+    const p = this.player;
+    this.milestone('landfall');
+    if (p.stats.landSpeed < 0.5) this.hint('!flop', 'You\'re flopping on dry land! Weight-Bearing Limbs let you walk, and Lungs let you breathe', true);
+    else this.hint('!land', 'Dry land! Sea hunters can\'t follow you here — but watch your breath', true);
+  }
+
   private die() {
     const p = this.player, r = this.run;
     if (!p.alive) return;
+    // Amniotic Egg: the clutch hatches and the lineage carries on
+    if (p.stats.extraLives > p.eggsUsed) {
+      p.eggsUsed++;
+      p.hp = p.maxHp * 0.7;
+      p.energy = Math.max(p.energy, p.maxEnergy * 0.6);
+      p.breath = 1;
+      p.growth *= 0.6;
+      p.hiddenT = 3; p.hardenT = 2;
+      p.vx = 0; p.vy = 0;
+      for (const o of this.world.queryOrganisms(p.x, p.y, p.r * 14, this.tmp)) {
+        if (o.targetIsPlayer) { o.target = null; o.targetIsPlayer = false; o.mode = 'wander'; o.restT = 5; o.windupT = 0; o.lungeT = 0; }
+      }
+      this.milestone('clutch');
+      this.events.push({ type: 'revive', x: p.x, y: p.y });
+      this.events.push({ type: 'hint', id: 'revive', text: 'Your clutch hatched — your lineage lives on!' });
+      return;
+    }
     p.alive = false;
     p.hp = 0;
     const ld = r.lastDamage;
@@ -784,6 +867,7 @@ export class Game {
     else if (ld.cause === 'spines' && ld.sp) { cause = 'spines'; detail = `Shredded on the barbs of a ${ld.sp.name}.`; r.killer = ld.sp; }
     else if (ld.cause === 'toxin' && ld.sp) { cause = 'toxin'; detail = `Poisoned by the toxins of a ${ld.sp.name} you ate.`; r.killer = ld.sp; }
     else if (ld.cause === 'heat') { cause = 'heat'; detail = 'Boiled in the scalding water of a thermal vent.'; }
+    else if (ld.cause === 'suffocated') { cause = 'suffocated'; detail = 'Suffocated on dry land, just out of reach of the sea.'; }
     r.cause = cause; r.causeDetail = detail;
     this.events.push({ type: 'death', cause });
     this.state = 'dead';

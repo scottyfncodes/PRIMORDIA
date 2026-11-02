@@ -5,15 +5,15 @@ import type { Organism } from '../src/sim/entities';
 export type Strategy = 'predator' | 'defender' | 'opportunist' | 'phototroph' | 'random';
 
 const PREF: Record<Strategy, string[]> = {
-  predator: ['flagellum', 'pseudopods', 'sensory', 'toxin', 'mitochondria', 'tentacles', 'lure', 'colony'],
-  defender: ['membrane', 'cilia', 'spines', 'vacuole', 'colony', 'mitochondria', 'toxin'],
-  opportunist: ['cilia', 'pseudopods', 'gullet', 'mitochondria', 'sensory', 'colony'],
-  phototroph: ['photosynthesis', 'membrane', 'cilia', 'vacuole', 'symbiosis', 'colony', 'lure'],
+  predator: ['flagellum', 'pseudopods', 'sensory', 'toxin', 'mitochondria', 'tentacles', 'lure', 'colony', 'claws', 'eyes', 'fins'],
+  defender: ['membrane', 'cilia', 'spines', 'vacuole', 'colony', 'mitochondria', 'toxin', 'carapace', 'ink', 'lateral'],
+  opportunist: ['cilia', 'pseudopods', 'gullet', 'mitochondria', 'sensory', 'colony', 'fins', 'filter', 'lateral'],
+  phototroph: ['photosynthesis', 'membrane', 'cilia', 'vacuole', 'symbiosis', 'colony', 'lure', 'fronds', 'filter', 'ink'],
   random: [],
 };
 
 export interface BotResult {
-  time: number; cause: string; era: number; mutations: string[]; firstMutation: number; era2: number; era3: number;
+  time: number; cause: string; era: number; mutations: string[]; firstMutation: number; era2: number; era3: number; era4: number;
   eaten: number; dna: number; form: string; nanSeen: boolean; frontier: boolean;
 }
 
@@ -26,7 +26,7 @@ export function runBot(strategy: Strategy, maxSeconds: number, seed = 1): BotRes
   g.newRun();
   const input: InputState = { mx: 0, my: 0, burst: false, abilities: {} };
   const dt = 1 / 30;
-  let firstMutation = -1, era2 = -1, era3 = -1, nanSeen = false;
+  let firstMutation = -1, era2 = -1, era3 = -1, era4 = -1, nanSeen = false;
   const tmp: Organism[] = [];
   for (let step = 0; step < maxSeconds / dt; step++) {
     const p = g.player;
@@ -40,7 +40,7 @@ export function runBot(strategy: Strategy, maxSeconds: number, seed = 1): BotRes
       if (firstMutation < 0) firstMutation = g.run.time;
       continue;
     }
-    if (g.state === 'leap') { g.confirmLeap(); if (p.eraIndex === 2) era2 = g.run.time; if (p.eraIndex === 3) era3 = g.run.time; continue; }
+    if (g.state === 'leap') { g.confirmLeap(); if (p.eraIndex === 2) era2 = g.run.time; if (p.eraIndex === 3) era3 = g.run.time; if (p.eraIndex === 4) era4 = g.run.time; continue; }
     if (g.state === 'dead') break;
     // steering
     const near = g.world.queryOrganisms(p.x, p.y, p.r * 12, tmp);
@@ -74,7 +74,8 @@ export function runBot(strategy: Strategy, maxSeconds: number, seed = 1): BotRes
     input.mx = mx / l; input.my = my / l;
     input.burst = threatClose && p.energy > 30;
     const ab: Partial<Record<AbilityId, boolean>> = {};
-    if (threatClose) { ab.harden = true; ab.toxin = true; }
+    if (threatClose) { ab.harden = true; ab.toxin = true; ab.ink = true; }
+    if (best && 'sp' in best && Math.hypot(best.x - p.x, best.y - p.y) < p.r * 4) ab.strike = Math.random() < 0.1;
     if (best && 'sp' in best) ab.engulf = Math.random() < 0.05;
     if (Math.random() < 0.01) ab.pulse = true;
     input.abilities = ab;
@@ -84,7 +85,7 @@ export function runBot(strategy: Strategy, maxSeconds: number, seed = 1): BotRes
   const p = g.player;
   return {
     time: Math.round(g.run.time), cause: g.state === 'dead' ? g.run.cause : 'alive', era: p.eraIndex,
-    mutations: Object.entries(p.traits).map(([k, v]) => `${k}${v > 1 ? v : ''}`), firstMutation: Math.round(firstMutation), era2: Math.round(era2), era3: Math.round(era3),
+    mutations: Object.entries(p.traits).map(([k, v]) => `${k}${v > 1 ? v : ''}`), firstMutation: Math.round(firstMutation), era2: Math.round(era2), era3: Math.round(era3), era4: Math.round(era4),
     eaten: g.run.eaten, dna: g.run.dna, form: p.form.name, nanSeen, frontier: g.run.milestones.includes('frontier'),
   };
 }

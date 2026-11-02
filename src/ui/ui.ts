@@ -140,7 +140,13 @@ export class UI {
     ids.forEach((id, i) => {
       const info = ABILITY_INFO[id];
       const b = h('button', `act ability a-${id}`, `<span class="ic">${info.icon}</span><span class="lb">${info.name}</span>`) as HTMLButtonElement;
-      b.style.setProperty('--i', String(i));
+      // arrange in two arcs around the Burst button (centre 42px from the corner)
+      const ring = i < 3 ? 0 : 1;
+      const R = ring === 0 ? 96 : 160;
+      const deg = ring === 0 ? [8, 50, 92][i] : [16, 42, 68][i - 3];
+      const a = (deg * Math.PI) / 180;
+      b.style.right = `${42 + Math.cos(a) * R - 29}px`;
+      b.style.bottom = `${42 + Math.sin(a) * R - 29}px`;
       const fire = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.input.pressAbility(id); this.pressFx(b); };
       b.addEventListener('touchstart', fire, { passive: false });
       b.addEventListener('mousedown', fire);
@@ -233,7 +239,7 @@ export class UI {
         <div class="setting"><div><b>Sound</b><small>Ambience and feedback</small></div><button class="toggle ${s.sound ? 'on' : ''}" id="st-sound"><i></i></button></div>
         <div class="setting"><div><b>Controls</b><small>Joystick: drag on the left side. Follow: touch anywhere and the cell swims toward your finger.</small></div>
           <div class="seg" id="st-ctrl"><button data-v="joystick" class="${s.controls === 'joystick' ? 'on' : ''}">Joystick</button><button data-v="drag" class="${s.controls === 'drag' ? 'on' : ''}">Follow</button></div></div>
-        <div class="setting"><div><b>Keyboard</b><small>WASD / arrows to swim · Space to burst · Q E R F abilities · V evolve · Esc pause</small></div></div>
+        <div class="setting"><div><b>Keyboard</b><small>WASD / arrows to swim · Space to burst · Q E R F T G abilities · V evolve · Esc pause</small></div></div>
         <div class="setting danger"><div><b>Erase discoveries</b><small>Clears the Codex and records</small></div><button class="btn small ghost" id="st-reset">Erase</button></div>
         <button class="btn primary" id="st-back">Done</button>
       </div>`;
@@ -355,7 +361,7 @@ export class UI {
         <div class="leap-form">${form.name}</div>
         <div class="leap-arch">Lineage: <b>${arch.name}</b> — ${arch.blurb}</div>
         <p class="leap-desc">${form.desc}</p>
-        <p class="leap-note">Your body grows. New life fills the sea — and new mutations become possible.</p>
+        <p class="leap-note">${next.worldScale > p.era.worldScale ? 'Your body grows and the sea opens up around you. New life fills it — and new mutations become possible.' : 'Your body grows. New life fills the sea — and new mutations become possible.'}</p>
         <button class="btn primary" id="lp-go">Transform</button>
       </div>`;
     const from = new PreviewCanvas(p.look, 'leap-canvas small', 0.26);

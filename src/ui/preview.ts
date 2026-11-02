@@ -24,9 +24,10 @@ export class PreviewCanvas {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const r = Math.min(w, h) * this.bodyScale * (this.look.flagella ? 0.85 : 1);
-    // shift forward so trailing flagella / tentacles stay in frame
-    const tail = this.look.flagella || this.look.tentacles ? r * 0.55 : 0;
+    const animal = this.look.body === 'swimmer';
+    const r = Math.min(w, h) * this.bodyScale * (animal ? 0.68 : this.look.flagella ? 0.85 : 1);
+    // shift so trailing flagella / tentacles (or leading claws) stay in frame
+    const tail = animal ? (this.look.claws || this.look.receptors ? -r * 0.3 : 0) : this.look.flagella || this.look.tentacles ? r * 0.55 : 0;
     const a = this.angle;
     drawOrganism(ctx, this.look, w / 2 + Math.cos(a) * tail, h / 2 + Math.sin(a) * tail, r, { seed: 2.1, t, speed, angle: this.angle + Math.sin(t * 0.4) * 0.15, detail: 1, glowScale: 0.5 });
   }

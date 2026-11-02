@@ -1,5 +1,5 @@
 import { clamp, damp, mixHex, rand, rgba, TAU } from '../engine/math';
-import { WORLD_H, WORLD_W, ZONES, type ZoneId } from '../sim/environment';
+import { ZONES, type ZoneId } from '../sim/environment';
 import type { Game } from '../game/game';
 import type { Organism } from '../sim/entities';
 import { drawOrganism } from './organismDraw';
@@ -65,7 +65,7 @@ export class Renderer {
 
   updateCamera(game: Game, dt: number) {
     const p = game.player;
-    const targetZoom = this.screenPlayerR() / p.r * (1 - game.danger * 0.08);
+    const targetZoom = this.bodyZoom(game) * (1 - game.danger * 0.08);
     this.cam.zoom = damp(this.cam.zoom, targetZoom, 2.2, dt);
     const lead = 0.35;
     const tx = p.x + p.vx * lead, ty = p.y + p.vy * lead;
@@ -74,9 +74,15 @@ export class Renderer {
     this.cam.shake = Math.max(0, this.cam.shake - dt * 2.5);
   }
 
+  /** Zoom that frames the player's body; slender animal bodies get a closer camera. */
+  bodyZoom(game: Game) {
+    const p = game.player;
+    return this.screenPlayerR() / p.r * (p.look.body === 'swimmer' ? 1.45 : 1);
+  }
+
   snapCamera(game: Game) {
     this.cam.x = game.player.x; this.cam.y = game.player.y;
-    this.cam.zoom = this.screenPlayerR() / game.player.r;
+    this.cam.zoom = this.bodyZoom(game);
   }
 
   render(game: Game, dt: number) {
@@ -95,6 +101,7 @@ export class Renderer {
     const deep = blend(this.zw, (k) => ZONES[k].deep);
     const near = blend(this.zw, (k) => ZONES[k].near);
     const light = env.light(cx, cy);
+    const WORLD_W = env.w, WORLD_H = env.h;
     const depthDark = clamp(cy / WORLD_H, 0, 1);
     const top = mixHex(near, '#000000', depthDark * 0.35);
     const bottom = mixHex(deep, '#000000', depthDark * 0.25);
@@ -316,6 +323,18 @@ export class Renderer {
     // toxin clouds
     for (const c of game.world.clouds) {
       const k = Math.min(1, c.t * 3) * (1 - Math.max(0, c.t - c.life + 0.8) / 0.8);
+      if (c.kind === 'ink') {
+        // billowing pigment that swallows light
+        for (let i = 0; i < 9; i++) {
+          const a = i * 0.7 + c.t * 0.35;
+          const d = c.r * (0.2 + 0.5 * ((i * 0.37) % 1)) * Math.min(1, c.t * 2);
+          drawGlow(ctx, '#06031a', c.x + Math.cos(a) * d, c.y + Math.sin(a) * d, c.r * 0.85, 0.75 * k);
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        drawGlow(ctx, '#5a3aff', c.x, c.y, c.r * 1.1, 0.08 * k);
+        ctx.globalCompositeOperation = 'source-over';
+        continue;
+      }
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < 7; i++) {
         const a = i * 0.9 + c.t * 0.7;
@@ -465,6 +484,11 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + k * 15), 0, TAU); ctx.stroke();
     }
     // engulf reach
+    if (p.strikeT > 0) {
+      ctx.strokeStyle = rgba('#ffe0c0', 0.5 * (p.strikeT / 0.55));
+      ctx.lineWidth = p.r * 0.08;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 1.5, p.angle - 0.8, p.angle + 0.8); ctx.stroke();
+    }
     if (p.engulfT > 0) {
       ctx.strokeStyle = rgba(look.membrane, 0.35 * (p.engulfT / 0.9));
       ctx.lineWidth = p.r * 0.05;
@@ -472,7 +496,7 @@ export class Renderer {
     }
     const transform = p.transformT >= 0 ? Math.sin(Math.min(1, p.transformT / 1.6) * Math.PI) : 0;
     drawOrganism(ctx, look, p.x, p.y, p.r * (1 + transform * 0.12), {
-      seed: 3.7, t, speed: spd, angle: p.angle, alpha: deadK ? 1 : 0.35,
+      seed: 3.7, t, speed: spd, angle: p.angle, alpha: deadK ? (p.hiddenT > 0 ? 0.55 : 1) : 0.35,
       hurt: p.hurtT > 0 ? p.hurtT * 2.5 : 0, flash: transform * 0.8, engulf: p.engulfT > 0 ? 1 : 0,
       harden: p.hardenT > 0 ? 0.6 + 0.4 * Math.sin(t * 12) : 0, pulse: Math.max(p.eatPulse, p.growPulse), detail: 1,
     });

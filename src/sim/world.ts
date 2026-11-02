@@ -1,6 +1,6 @@
 import { clamp, rand, TAU, weightedPick, dist2 } from '../engine/math';
 import { SpatialGrid } from '../engine/spatial';
-import { Environment, WORLD_H, WORLD_W, ZONES, type ZoneId } from './environment';
+import { Environment, ZONES, type ZoneId } from './environment';
 import { Nutrient, Organism, type Body } from './entities';
 import { SPECIES, type SpeciesDef } from './species';
 import type { EraDef } from '../game/eras';
@@ -14,9 +14,11 @@ export interface PlayerLike extends Body {
   detectability: number;
   lure: number;
   hidden: boolean;
+  /** multiplies predator wind-up time against the player (eyes / lateral line) */
+  reaction: number;
 }
 
-export interface ToxinCloud { x: number; y: number; r: number; t: number; life: number; dps: number }
+export interface ToxinCloud { x: number; y: number; r: number; t: number; life: number; dps: number; kind: 'toxin' | 'ink' }
 
 export type WorldEvent =
   | { type: 'npcEat'; x: number; y: number; r: number }
@@ -41,8 +43,8 @@ export class World {
   organisms: Organism[] = [];
   nutrients: Nutrient[] = [];
   clouds: ToxinCloud[] = [];
-  grid = new SpatialGrid<Organism>(WORLD_W, WORLD_H, 160);
-  ngrid = new SpatialGrid<Nutrient>(WORLD_W, WORLD_H, 120);
+  grid: SpatialGrid<Organism>;
+  ngrid: SpatialGrid<Nutrient>;
   events: WorldEvent[] = [];
   era!: EraDef;
   time = 0;
@@ -60,12 +62,34 @@ export class World {
 
   constructor(env: Environment) {
     this.env = env;
+    this.grid = new SpatialGrid<Organism>(env.w, env.h, 160 * env.scale);
+    this.ngrid = new SpatialGrid<Nutrient>(env.w, env.h, 120 * env.scale);
     for (let i = 0; i < MAX_ORGANISMS; i++) this.organisms.push(new Organism());
     for (let i = 0; i < MAX_NUTRIENTS; i++) this.nutrients.push(new Nutrient());
   }
 
+  /** Rebuild spatial grids after the sea is rescaled. */
+  private rebuildGrids() {
+    const env = this.env;
+    if (this.grid.width !== env.w) {
+      this.grid = new SpatialGrid<Organism>(env.w, env.h, 160 * env.scale);
+      this.ngrid = new SpatialGrid<Nutrient>(env.w, env.h, 120 * env.scale);
+    }
+    let m = 0;
+    for (const sp of SPECIES) if (sp.eras.includes(this.era.index)) m = Math.max(m, sp.size[1]);
+    this.maxOrgR = m + 10;
+  }
+
+  /** Clear all life (used when the sea is rescaled between eras). */
+  clearLife() {
+    for (const o of this.organisms) o.alive = false;
+    for (const n of this.nutrients) n.active = false;
+    this.clouds.length = 0;
+  }
+
   reset(era: EraDef) {
     this.era = era;
+    this.rebuildGrids();
     for (const o of this.organisms) o.alive = false;
     for (const n of this.nutrients) n.active = false;
     this.clouds.length = 0;
@@ -75,6 +99,7 @@ export class World {
 
   setEra(era: EraDef) {
     this.era = era;
+    this.rebuildGrids();
     // Out-scaled life slowly thins out naturally through despawn; cull tiny motes now.
     for (const n of this.nutrients) if (n.active && n.r < era.nutrientR * 0.5) n.active = false;
   }
@@ -149,7 +174,7 @@ export class World {
   private ringPoint(minR: number, maxR: number) {
     const a = rand(0, TAU);
     const d = rand(minR, maxR);
-    return { x: clamp(this.cx + Math.cos(a) * d, 40, WORLD_W - 40), y: clamp(this.cy + Math.sin(a) * d, 40, WORLD_H - 40) };
+    return { x: clamp(this.cx + Math.cos(a) * d, 40, this.env.w - 40), y: clamp(this.cy + Math.sin(a) * d, 40, this.env.h - 40) };
   }
 
   private insideRock(x: number, y: number, pad: number) {
@@ -186,10 +211,10 @@ export class World {
     const zone = this.env.zoneAt(x, y);
     let nearVent = false;
     let vx = x, vy = y;
-    for (const v of this.env.vents) if (dist2(v.x, v.y, x, y) < 700 * 700) { nearVent = true; vx = v.x; vy = v.y; break; }
+    for (const v of this.env.vents) if (dist2(v.x, v.y, x, y) < (700 * this.env.scale) ** 2) { nearVent = true; vx = v.x; vy = v.y; break; }
     const sp = weightedPick(SPECIES, (s) => this.speciesWeight(s, zone, nearVent));
     if (!sp) return;
-    if (sp.ventBound) { x = vx + rand(-260, 260); y = vy + rand(-260, 260); }
+    if (sp.ventBound) { const k = 260 * this.env.scale; x = vx + rand(-k, k); y = vy + rand(-k, k); }
     if (this.insideRock(x, y, sp.size[1])) return;
     // limit concurrent apex threats so the sea stays fair
     if (sp.category === 'predator') {
@@ -247,7 +272,7 @@ export class World {
       if (dist2(v.x, v.y, this.cx, this.cy) > (this.activeRadius + 300) ** 2) continue;
       if (Math.random() < dt * 1.6) {
         const n = this.spawnNutrient(v.x + rand(-v.r, v.r) * 0.4, v.y + rand(-v.r, v.r) * 0.4, Math.random() < 0.2 ? 'rich' : 'mote');
-        if (n) { n.vx = rand(-12, 12); n.vy = rand(-40, -20); }
+        if (n) { n.vx = rand(-12, 12) * this.env.scale; n.vy = rand(-40, -20) * this.env.scale; }
       }
     }
 
@@ -301,7 +326,7 @@ export class World {
       n.vy *= Math.exp(-1.2 * dt);
       n.x += (n.vx + this.cur.x * 0.8) * dt;
       n.y += (n.vy + this.cur.y * 0.8 + Math.sin(n.phase * 0.8) * 2) * dt;
-      if (n.x < 10 || n.x > WORLD_W - 10 || n.y < 10 || n.y > WORLD_H - 10) n.active = false;
+      if (n.x < 10 || n.x > this.env.w - 10 || n.y < 10 || n.y > this.env.h - 10) n.active = false;
       if (n.kind === 'scrap' && n.life > 40) n.active = false;
     }
   }
@@ -315,6 +340,11 @@ export class World {
     for (const c of this.clouds) {
       const rr = c.r * Math.min(1, c.t * 3);
       if (dist2(c.x, c.y, o.x, o.y) < (rr + o.r) ** 2) {
+        if (c.kind === 'ink') {
+          // blinded: lose track of the player and blunder about
+          if (o.targetIsPlayer) { o.target = null; o.targetIsPlayer = false; o.mode = 'wander'; o.restT = 3.5; o.windupT = 0; o.lungeT = 0; }
+          continue;
+        }
         o.hp -= c.dps * dt;
         o.hurtT = 0.15;
         o.mode = 'flee'; o.fleeX = c.x; o.fleeY = c.y; o.target = null; o.targetIsPlayer = false;
@@ -352,7 +382,7 @@ export class World {
             speedK = o.mode === 'hunt' ? 0.82 : o.mode === 'lured' ? 0.45 : 0.6;
             // lunge mechanics — telegraphed wind-up, then a strike
             if (o.mode === 'hunt' && sp.lunge && o.lungeCd <= 0 && o.windupT <= 0 && o.lungeT <= 0 && d < o.r * 4.5 + t.r) {
-              o.windupT = 0.38;
+              o.windupT = 0.38 * (o.targetIsPlayer ? p.reaction : 1);
             }
           }
           break;
@@ -383,17 +413,18 @@ export class World {
     // rocks: steer around
     for (const r of this.env.rocks) {
       const d2 = dist2(r.x, r.y, o.x, o.y);
-      const lim = r.r + o.r + 40;
+      const pad = Math.max(40, o.r * 2);
+      const lim = r.r + o.r + pad;
       if (d2 < lim * lim) {
         const d = Math.sqrt(d2) || 1;
-        const k = (1 - (d - r.r - o.r) / 40) * 1.4;
+        const k = (1 - (d - r.r - o.r) / pad) * 1.4;
         dx += ((o.x - r.x) / d) * k; dy += ((o.y - r.y) / d) * k;
       }
     }
     // soft world bounds
-    const m = 200;
-    if (o.x < m) dx += (m - o.x) / m * 2; if (o.x > WORLD_W - m) dx -= (o.x - (WORLD_W - m)) / m * 2;
-    if (o.y < m) dy += (m - o.y) / m * 2; if (o.y > WORLD_H - m) dy -= (o.y - (WORLD_H - m)) / m * 2;
+    const m = 200 * this.env.scale, W = this.env.w, H = this.env.h;
+    if (o.x < m) dx += (m - o.x) / m * 2; if (o.x > W - m) dx -= (o.x - (W - m)) / m * 2;
+    if (o.y < m) dy += (m - o.y) / m * 2; if (o.y > H - m) dy -= (o.y - (H - m)) / m * 2;
 
     const dl = Math.hypot(dx, dy);
     if (dl > 1) { dx /= dl; dy /= dl; }
@@ -442,8 +473,8 @@ export class World {
         if (vn < 0) { b.vx -= vn * nx * 1.5; b.vy -= vn * ny * 1.5; }
       }
     }
-    b.x = clamp(b.x, b.r, WORLD_W - b.r);
-    b.y = clamp(b.y, b.r, WORLD_H - b.r);
+    b.x = clamp(b.x, b.r, this.env.w - b.r);
+    b.y = clamp(b.y, b.r, this.env.h - b.r);
   }
 
   private think(o: Organism, p: PlayerLike) {
@@ -599,8 +630,8 @@ export class World {
     this.events.push({ type: 'npcDie', x: o.x, y: o.y, r: o.r, sp: o.sp, byToxin });
   }
 
-  addCloud(x: number, y: number, r: number, dps: number) {
-    this.clouds.push({ x, y, r, t: 0, life: 3.4, dps });
+  addCloud(x: number, y: number, r: number, dps: number, kind: 'toxin' | 'ink' = 'toxin') {
+    this.clouds.push({ x, y, r, t: 0, life: kind === 'ink' ? 4.2 : 3.4, dps, kind });
   }
 
   queryOrganisms(x: number, y: number, r: number, out: Organism[]) {

@@ -200,6 +200,8 @@ export class Audio {
     if (id === 'engulf') { this.tone(200, 2.2, 0.35, 0.12, 'sine'); this.noise(0.3, 300, 0.12, 1, 'lowpass', 3); }
     if (id === 'harden') { this.tone(330, 1, 0.6, 0.1, 'triangle'); this.tone(495, 1, 0.6, 0.06, 'triangle'); }
     if (id === 'pulse') { this.tone(660, 0.5, 1.2, 0.12, 'sine', 0.002); this.tone(990, 0.5, 1.0, 0.05, 'sine', 0.002); }
+    if (id === 'strike') { this.noise(0.25, 1400, 0.2, 1.5, 'bandpass', 0.4); this.tone(260, 0.6, 0.2, 0.1, 'triangle', 0.002); }
+    if (id === 'ink') { this.noise(1.4, 300, 0.22, 0.6, 'lowpass', 0.3); this.tone(90, 0.7, 1.2, 0.08, 'sine', 0.05); }
     if (id === 'toxin') { this.noise(1.2, 700, 0.2, 0.7, 'bandpass', 0.3); this.tone(140, 0.7, 0.9, 0.08, 'sawtooth', 0.05); }
   }
   discover() {
@@ -221,6 +223,11 @@ export class Audio {
     this.tone(330, 0.25, 2.5, 0.2, 'triangle', 0.01);
     this.tone(247, 0.25, 2.8, 0.12, 'sine', 0.05);
     this.noise(2, 800, 0.15, 0.6, 'lowpass', 0.1);
+  }
+  strike(kill: boolean) {
+    if (!this.ctx) return;
+    this.noise(0.15, 2600, 0.18, 3);
+    this.tone(kill ? 180 : 140, 0.5, 0.3, 0.2, 'triangle', 0.002);
   }
   ui() { if (!this.ctx) return; this.tone(880, 1, 0.12, 0.04, 'sine', 0.002); }
   heat() { if (!this.ctx) return; this.noise(0.3, 1800, 0.06, 2); }

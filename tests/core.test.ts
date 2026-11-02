@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SpatialGrid } from '../src/engine/spatial';
 import { deriveStats, generateOffers, isEligible, TRAITS, TRAIT_BY_ID, dominantArchetype } from '../src/game/traits';
 import { buildPlayerLook } from '../src/game/player';
-import { formFor, FORMS } from '../src/game/eras';
+import { ERAS, formFor, FORMS, MAX_PLAYABLE_ERA } from '../src/game/eras';
 import { Progress, type KV } from '../src/game/progress';
 import { Game } from '../src/game/game';
 import { SPECIES, SPECIES_BY_ID } from '../src/sim/species';
@@ -48,6 +48,10 @@ describe('traits', () => {
     expect(isEligible(TRAIT_BY_ID.gullet, {}, 2)).toBe(false);
     expect(isEligible(TRAIT_BY_ID.gullet, { cilia: 1 }, 2)).toBe(true);
     expect(isEligible(TRAIT_BY_ID.flagellum, { flagellum: 2 }, 3)).toBe(false);
+    expect(isEligible(TRAIT_BY_ID.claws, {}, 3)).toBe(false);
+    expect(isEligible(TRAIT_BY_ID.claws, {}, 4)).toBe(true);
+    expect(isEligible(TRAIT_BY_ID.fronds, {}, 4)).toBe(false);
+    expect(isEligible(TRAIT_BY_ID.fronds, { photosynthesis: 1 }, 4)).toBe(true);
   });
   it('offers are diverse and eligible', () => {
     for (let i = 0; i < 50; i++) {
@@ -66,6 +70,8 @@ describe('traits', () => {
   it('there are at least 3 distinct evolutionary outcomes per advanced era', () => {
     expect(FORMS.filter((f) => f.era === 2).length).toBeGreaterThanOrEqual(3);
     expect(FORMS.filter((f) => f.era === 3).length).toBeGreaterThanOrEqual(3);
+    expect(FORMS.filter((f) => f.era === 4).length).toBeGreaterThanOrEqual(3);
+    for (const f of FORMS.filter((f) => f.era === 4)) expect(buildPlayerLook({}, 4, f).body).toBe('swimmer');
   });
 });
 
@@ -117,5 +123,45 @@ describe('eat rules', () => {
   });
   it('species data is sane', () => {
     for (const s of SPECIES) { expect(s.size[0]).toBeLessThanOrEqual(s.size[1]); expect(s.eras.length).toBeGreaterThan(0); }
+  });
+});
+
+describe('era IV', () => {
+  it('is playable and reachable from Era III', () => {
+    expect(MAX_PLAYABLE_ERA).toBe(4);
+    expect(ERAS[2].mutationsToLeap).toBeLessThan(20);
+    expect(SPECIES.filter((s) => s.eras.includes(4)).length).toBeGreaterThanOrEqual(8);
+  });
+  it('the leap rescales the sea and keeps the player inside it', () => {
+    const g = new Game();
+    g.newRun();
+    const p = g.player;
+    // fast-forward to a fully grown Era III organism
+    g.state = 'leap'; g.pendingLeapForm = formFor(2, 'predator'); g.confirmLeap();
+    g.state = 'leap'; g.pendingLeapForm = formFor(3, 'predator'); g.confirmLeap();
+    expect(g.env.scale).toBe(2);
+    const fx = p.x / g.env.w, fy = p.y / g.env.h;
+    g.state = 'leap'; g.pendingLeapForm = formFor(4, 'predator'); g.confirmLeap();
+    expect(p.eraIndex).toBe(4);
+    expect(g.env.scale).toBe(4);
+    expect(p.x / g.env.w).toBeCloseTo(fx, 1);
+    expect(p.y / g.env.h).toBeCloseTo(fy, 1);
+    expect(g.world.countAlive()).toBeGreaterThan(10);
+    for (let i = 0; i < 300; i++) g.update(1 / 60, { mx: 1, my: 0, burst: false, abilities: {} });
+    expect(Number.isFinite(p.x)).toBe(true);
+    expect(p.x).toBeLessThanOrEqual(g.env.w);
+    // a new run returns the sea to its original size
+    g.newRun();
+    expect(g.env.scale).toBe(1);
+  });
+  it('strike seizes shelled prey that would otherwise be too hard', () => {
+    const g = new Game();
+    g.newRun();
+    const p = g.player;
+    p.r = 150;
+    const o = g.world.spawnOrganism(SPECIES_BY_ID.crawler, p.x + 400, p.y, 110)!;
+    expect(g.canEat(o)).not.toBe('ok');
+    p.strikeT = 0.5;
+    expect(g.canEat(o)).toBe('ok');
   });
 });

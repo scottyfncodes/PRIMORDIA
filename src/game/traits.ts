@@ -5,7 +5,7 @@ import type { Look } from '../render/look';
  * AND the organism Look (visuals) at every level, so evolution is always
  * both visible and functional.
  */
-export type AbilityId = 'engulf' | 'harden' | 'pulse' | 'toxin';
+export type AbilityId = 'engulf' | 'harden' | 'pulse' | 'toxin' | 'strike' | 'ink';
 export type Archetype = 'predator' | 'defender' | 'opportunist' | 'phototroph';
 export type TraitCategory = 'Locomotion' | 'Feeding' | 'Defense' | 'Senses' | 'Metabolism' | 'Colonial';
 
@@ -41,6 +41,14 @@ export interface Stats {
   lure: number;
   predatorDeter: number;
   detectability: number;
+  /** predator wind-up multiplier against you (more time to react) */
+  reaction: number;
+  /** nutrient energy multiplier */
+  nutrientMult: number;
+  /** Harden duration multiplier */
+  hardenMult: number;
+  /** turn responsiveness multiplier */
+  turn: number;
   abilities: AbilityId[];
 }
 
@@ -76,6 +84,10 @@ export const baseStats = (): Stats => ({
   lure: 0,
   predatorDeter: 0,
   detectability: 1,
+  reaction: 1,
+  nutrientMult: 1,
+  hardenMult: 1,
+  turn: 1,
   abilities: [],
 });
 
@@ -295,6 +307,94 @@ export const TRAITS: TraitDef[] = [
     apply: (s) => { s.photo *= 1.6; s.photoMinLight = 0.05; s.maxEnergy *= 1.2; s.speed *= 0.92; },
     look: (l) => { l.chloro = (l.chloro || 0) + 6; },
   }),
+  // ───────────── ERA IV ─────────────
+  T({
+    id: 'eyes', name: 'Camera Eyes', icon: '◐', category: 'Senses', era: 4,
+    bio: 'A lens focuses light onto a cup of photoreceptors. For the first time, a creature can truly see.',
+    levels: [
+      { name: 'Camera Eyes', cost: 150, pros: ['See far into the Abyssal Dark', 'Shows nearby threats at the screen edge', 'Predators telegraph strikes 60% longer'], cons: ['+8% metabolism'] },
+    ],
+    archetype: { predator: 1.5, opportunist: 0.5 },
+    apply: (s) => { s.vision += 0.9; s.sense = Math.max(s.sense, 34); s.reaction *= 1.6; s.metabolism *= 1.08; },
+    look: (l) => { l.eyes = 2; },
+  }),
+  T({
+    id: 'fins', name: 'Paired Fins', icon: '⋎', category: 'Locomotion', era: 4,
+    bio: 'Flaps of muscle on each flank — stabilisers, rudders and brakes. Swimming becomes steering.',
+    levels: [
+      { name: 'Paired Fins', cost: 140, pros: ['+15% top speed', 'Much sharper turning and acceleration'], cons: ['+10% metabolism'] },
+      { name: 'Ray Fins', cost: 200, pros: ['+10% more top speed', 'Burst travels farther'], cons: ['+6% metabolism'] },
+    ],
+    archetype: { opportunist: 1.5, predator: 1 },
+    apply: (s, lv) => {
+      s.speed *= 1.15; s.accel *= 1.5; s.turn *= 1.6; s.metabolism *= 1.1;
+      if (lv >= 2) { s.speed *= 1.1; s.burstPower *= 1.25; s.metabolism *= 1.06; }
+    },
+    look: (l, lv) => { l.fins = (l.fins || 0) + (lv >= 2 ? 3 : 2); },
+  }),
+  T({
+    id: 'claws', name: 'Raptorial Claws', icon: '❯', category: 'Feeding', era: 4,
+    bio: 'Spiny grasping limbs folded beneath the head, ready to snap out and seize.',
+    levels: [
+      { name: 'Raptorial Claws', cost: 170, pros: ['STRIKE ability: lunge and seize prey up to 35% larger than you', 'Strikes crack shells and wound bigger animals'], cons: ['−8% top speed'] },
+    ],
+    archetype: { predator: 2.5 },
+    ability: 'strike',
+    apply: (s) => { s.abilities.push('strike'); s.speed *= 0.92; s.eatRatio = Math.max(s.eatRatio, 0.95); },
+    look: (l) => { l.claws = 2; },
+  }),
+  T({
+    id: 'carapace', name: 'Mineral Carapace', icon: '⬢', category: 'Defense', era: 4,
+    bio: 'Calcium and chitin harden into a jointed exoskeleton — the first true armour.',
+    levels: [
+      { name: 'Mineral Carapace', cost: 160, pros: ['−50% damage taken', '+40% integrity', 'Immune to spines', 'Harden lasts much longer'], cons: ['−15% top speed', 'Slower turning'] },
+    ],
+    archetype: { defender: 3 },
+    apply: (s) => { s.damageTaken *= 0.5; s.maxHp *= 1.4; s.spinyImmune = true; s.hardenMult *= 1.8; s.speed *= 0.85; s.turn *= 0.8; },
+    look: (l) => { l.carapace = true; },
+  }),
+  T({
+    id: 'lateral', name: 'Lateral Line', icon: '┅', category: 'Senses', era: 4,
+    bio: 'A row of pressure-sensing pores along each flank feels every ripple in the water.',
+    levels: [
+      { name: 'Lateral Line', cost: 140, pros: ['Feel hunters coming from any direction', 'Predators telegraph strikes 50% longer', 'Nutrients sensed from farther'], cons: ['+6% metabolism'] },
+    ],
+    archetype: { defender: 1, opportunist: 1.5 },
+    apply: (s) => { s.sense = Math.max(s.sense, 42); s.reaction *= 1.5; s.magnet *= 1.2; s.metabolism *= 1.06; },
+    look: (l) => { l.lateral = true; },
+  }),
+  T({
+    id: 'ink', name: 'Ink Sac', icon: '●', category: 'Defense', era: 4,
+    bio: 'A pouch of dark pigment. One squeeze and the water turns to night.',
+    levels: [
+      { name: 'Ink Sac', cost: 150, pros: ['INK ability: a dark cloud that makes hunters lose you', 'You vanish from predators for a few seconds'], cons: ['+5% metabolism'] },
+    ],
+    archetype: { defender: 1.5, opportunist: 1 },
+    ability: 'ink',
+    apply: (s) => { s.abilities.push('ink'); s.metabolism *= 1.05; },
+    look: (l) => { l.ink = true; },
+  }),
+  T({
+    id: 'filter', name: 'Filter Gills', icon: '≣', category: 'Feeding', era: 4,
+    bio: 'Feathered gills strain food from the water as you swim. The whole sea becomes a meal.',
+    levels: [
+      { name: 'Filter Gills', cost: 145, pros: ['Sweep nutrients from twice as far', 'Nutrients give +60% energy'], cons: ['Can only swallow smaller prey (−10% size)'] },
+    ],
+    archetype: { opportunist: 2, phototroph: 1 },
+    apply: (s) => { s.magnet *= 2; s.nutrientMult *= 1.6; s.eatRatio *= 0.9; },
+    look: (l) => { l.gills = true; },
+  }),
+  T({
+    id: 'fronds', name: 'Sun Fronds', icon: '❦', category: 'Metabolism', era: 4,
+    requires: ['photosynthesis'],
+    bio: 'Broad living fronds packed with symbiotic algae unfurl from your back.',
+    levels: [
+      { name: 'Sun Fronds', cost: 160, pros: ['Photosynthesis +80%', '+25% max energy'], cons: ['Requires Photosynthesis', '−10% top speed'] },
+    ],
+    archetype: { phototroph: 3 },
+    apply: (s) => { s.photo *= 1.8; s.maxEnergy *= 1.25; s.speed *= 0.9; },
+    look: (l) => { l.fronds = (l.fronds || 0) + 3; },
+  }),
 ];
 
 export const TRAIT_BY_ID: Record<string, TraitDef> = Object.fromEntries(TRAITS.map((t) => [t.id, t]));
@@ -376,4 +476,6 @@ export const ABILITY_INFO: Record<AbilityId, { name: string; icon: string; coold
   harden: { name: 'Harden', icon: '◎', cooldown: 9, energy: 6 },
   pulse: { name: 'Pulse', icon: '◉', cooldown: 8, energy: 5 },
   toxin: { name: 'Toxin', icon: '☣', cooldown: 10, energy: 9 },
+  strike: { name: 'Strike', icon: '❯', cooldown: 3.6, energy: 5 },
+  ink: { name: 'Ink', icon: '●', cooldown: 11, energy: 6 },
 };

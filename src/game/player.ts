@@ -23,8 +23,8 @@ export class Player {
   alive = true;
 
   burstT = 0; burstCd = 0;
-  cooldowns: Record<AbilityId, number> = { engulf: 0, harden: 0, pulse: 0, toxin: 0 };
-  engulfT = 0; hardenT = 0; pulseT = -1;
+  cooldowns: Record<AbilityId, number> = { engulf: 0, harden: 0, pulse: 0, toxin: 0, strike: 0, ink: 0 };
+  engulfT = 0; hardenT = 0; pulseT = -1; strikeT = 0; hiddenT = 0;
   hurtT = 0; sinceHurt = 99; eatPulse = 0; growPulse = 0; transformT = -1;
   spinyCd = 0; heatT = 0;
   satellites: Satellite[] = [];
@@ -44,8 +44,8 @@ export class Player {
     this.growth = 0; this.dna = 0; this.dnaTotal = 0;
     this.alive = true;
     this.burstT = 0; this.burstCd = 0;
-    this.cooldowns = { engulf: 0, harden: 0, pulse: 0, toxin: 0 };
-    this.engulfT = 0; this.hardenT = 0; this.pulseT = -1;
+    this.cooldowns = { engulf: 0, harden: 0, pulse: 0, toxin: 0, strike: 0, ink: 0 };
+    this.engulfT = 0; this.hardenT = 0; this.pulseT = -1; this.strikeT = 0; this.hiddenT = 0;
     this.hurtT = 0; this.sinceHurt = 99; this.eatPulse = 0; this.growPulse = 0; this.transformT = -1;
     this.trail = [];
     this.refresh();
@@ -96,7 +96,7 @@ export class Player {
     return s;
   }
 
-  get canSeeThreatRatio() { return Math.max(this.stats.eatRatio, this.engulfT > 0 ? this.stats.engulfRatio : 0); }
+  get canSeeThreatRatio() { return Math.max(this.stats.eatRatio, this.engulfT > 0 ? this.stats.engulfRatio : 0, this.strikeT > 0 ? 1.35 : 0); }
 }
 
 export function buildPlayerLook(traits: TraitLevels, eraIndex: number, form: FormDef): Look {

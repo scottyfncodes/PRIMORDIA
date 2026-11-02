@@ -35,7 +35,8 @@ export type GameEvent =
   | { type: 'npcDie'; x: number; y: number; r: number; color: string }
   | { type: 'hint'; text: string; id: string }
   | { type: 'heat'; x: number; y: number }
-  | { type: 'satellitePop'; x: number; y: number };
+  | { type: 'satellitePop'; x: number; y: number }
+  | { type: 'strikeHit'; x: number; y: number; r: number; kill: boolean };
 
 export interface RunStats {
   time: number;
@@ -72,7 +73,9 @@ export const MILESTONES: Record<string, { name: string; desc: string; dna: numbe
   survive_600: { name: 'Ancient Lineage', desc: 'Survived for 10 minutes.', dna: 20 },
   era2: { name: 'The Great Oxidation', desc: 'Became a complex cell (Era II).', dna: 0 },
   era3: { name: 'Many Become One', desc: 'Became multicellular (Era III).', dna: 0 },
-  frontier: { name: 'The Cambrian Frontier', desc: 'Reached full size in Era III.', dna: 25 },
+  era4: { name: 'The Cambrian Explosion', desc: 'Became an early animal (Era IV).', dna: 0 },
+  frontier: { name: 'Edge of the Known', desc: 'Reached full size in the last charted era.', dna: 25 },
+  apex: { name: 'Apex Predator', desc: 'Took down a Clawed Raptor.', dna: 30 },
   explorer: { name: 'Cartographer of the Deep', desc: 'Visited every zone in one run.', dna: 15 },
   sunfed: { name: 'Fed by the Sun', desc: 'Generated 300 energy from light in one run.', dna: 8 },
   toxin_kill: { name: 'Chemical Warfare', desc: 'Killed an organism with toxin.', dna: 4 },
@@ -114,11 +117,13 @@ export class Game {
       predatorDeter: p.stats.predatorDeter + (p.hardenT > 0 ? 0.3 : 0),
       detectability: p.stats.detectability,
       lure: p.stats.lure,
-      hidden: false,
+      hidden: p.hiddenT > 0,
+      reaction: p.stats.reaction,
     };
   }
 
   newRun() {
+    this.env.setScale(1);
     this.player.reset(PLAYER_SPAWN.x + rand(-80, 80), PLAYER_SPAWN.y + rand(-80, 80));
     this.world.reset(ERAS[0]);
     this.player.form = formFor(1, 'opportunist');
@@ -163,6 +168,7 @@ export class Game {
   /** Title-screen attract mode: the ecosystem lives on behind the menu. */
   startAttract() {
     this.state = 'title';
+    this.env.setScale(1);
     this.world.reset(ERAS[0]);
     this.world.runTime = 120;
     this.world.cx = PLAYER_SPAWN.x; this.world.cy = PLAYER_SPAWN.y;
@@ -172,7 +178,7 @@ export class Game {
   updateAttract(dt: number, cx: number, cy: number) {
     this.env.update(dt);
     this.world.cx = cx; this.world.cy = cy; this.world.viewR = this.viewR;
-    const ghost: PlayerLike = { x: -9999, y: -9999, vx: 0, vy: 0, r: 1, alive: false, threatRatio: 0, predatorDeter: 0, detectability: 0, lure: 0, hidden: true };
+    const ghost: PlayerLike = { x: -9999, y: -9999, vx: 0, vy: 0, r: 1, alive: false, threatRatio: 0, predatorDeter: 0, detectability: 0, lure: 0, hidden: true, reaction: 1 };
     this.world.update(dt, ghost);
     this.world.events.length = 0;
   }
@@ -237,7 +243,7 @@ export class Game {
       const want = Math.atan2(p.vy, p.vx);
       let da = want - p.angle;
       while (da > Math.PI) da -= TAU; while (da < -Math.PI) da += TAU;
-      p.angle += da * Math.min(1, dt * (st.accel > 1.3 ? 11 : 6.5));
+      p.angle += da * Math.min(1, dt * (st.accel > 1.3 ? 11 : 6.5) * st.turn);
     }
     // tentacle trail
     p.trail.unshift({ x: p.x, y: p.y });
@@ -275,7 +281,7 @@ export class Game {
   private updateAbilities(dt: number, input: InputState) {
     const p = this.player, st = p.stats;
     for (const k of Object.keys(p.cooldowns) as AbilityId[]) p.cooldowns[k] -= dt;
-    p.engulfT -= dt; p.hardenT -= dt;
+    p.engulfT -= dt; p.hardenT -= dt; p.strikeT -= dt; p.hiddenT -= dt;
     if (p.pulseT >= 0) { p.pulseT += dt; if (p.pulseT > 1.2) p.pulseT = -1; }
     for (const id of st.abilities) {
       if (!input.abilities[id]) continue;
@@ -309,7 +315,7 @@ export class Game {
       const imp = p.maxSpeed * 1.5;
       p.vx += ax * imp; p.vy += ay * imp;
     } else if (id === 'harden') {
-      p.hardenT = 2.6;
+      p.hardenT = 2.6 * p.stats.hardenMult;
     } else if (id === 'pulse') {
       p.pulseT = 0;
       const R = p.r * 16;
@@ -321,6 +327,29 @@ export class Game {
       }
     } else if (id === 'toxin') {
       this.world.addCloud(p.x, p.y, p.r * 4.6, 30 * p.eraIndex + 10);
+    } else if (id === 'strike') {
+      p.strikeT = 0.55;
+      // snap toward the best target in front of you
+      const near = this.world.queryOrganisms(p.x, p.y, p.r * 7, this.tmp);
+      let best: Organism | null = null, bs = Infinity;
+      for (const o of near) {
+        if (o.dyingT >= 0) continue;
+        const dx = o.x - p.x, dy = o.y - p.y, d = Math.hypot(dx, dy) || 1;
+        const facing = (dx * Math.cos(p.angle) + dy * Math.sin(p.angle)) / d;
+        const score = d * (1.6 - facing) * (o.r <= p.r * 1.35 ? 1 : 2.5);
+        if (score < bs) { bs = score; best = o; }
+      }
+      let ax = Math.cos(p.angle), ay = Math.sin(p.angle);
+      if (best) { const d = Math.hypot(best.x - p.x, best.y - p.y) || 1; ax = (best.x - p.x) / d; ay = (best.y - p.y) / d; p.angle = Math.atan2(ay, ax); }
+      const imp = p.maxSpeed * 2.1;
+      p.vx = ax * imp; p.vy = ay * imp;
+    } else if (id === 'ink') {
+      this.world.addCloud(p.x, p.y, p.r * 6, 0, 'ink');
+      p.hiddenT = 2.8;
+      // everything currently hunting you loses the trail
+      for (const o of this.world.queryOrganisms(p.x, p.y, p.r * 14, this.tmp)) {
+        if (o.targetIsPlayer) { o.target = null; o.targetIsPlayer = false; o.mode = 'wander'; o.restT = 3.5; o.windupT = 0; o.lungeT = 0; }
+      }
     }
     this.events.push({ type: 'ability', id, x: p.x, y: p.y, r: p.r });
   }
@@ -328,6 +357,7 @@ export class Game {
   /** Eat rules: size ratio, defensive traits and adaptations decide. */
   canEat(o: Organism, assumeEngulf = false): 'ok' | 'size' | 'spiny' | 'shelled' {
     const p = this.player, st = p.stats;
+    if (p.strikeT > 0) return o.r <= p.r * 1.35 ? 'ok' : 'size';
     const engulfing = st.engulfRatio > 0 && (assumeEngulf || p.engulfT > 0);
     const ratio = engulfing ? Math.max(st.eatRatio, st.engulfRatio) : st.eatRatio;
     if (o.r > p.r * ratio) return 'size';
@@ -358,7 +388,7 @@ export class Game {
 
   private interactions(dt: number) {
     const p = this.player, st = p.stats;
-    const reach = p.r * (p.engulfT > 0 ? 1.35 : 1);
+    const reach = p.r * (p.engulfT > 0 ? 1.35 : p.strikeT > 0 ? 1.4 : 1);
     const near = this.world.queryOrganisms(p.x, p.y, reach + 10, this.tmp);
     for (const o of near) {
       if (o.dyingT >= 0) continue;
@@ -367,7 +397,19 @@ export class Game {
       if (!touching) continue;
       const verdict = this.canEat(o);
       if (verdict === 'ok' && d < reach + o.r * 0.6) {
+        if (p.strikeT > 0) { p.strikeT = 0; this.events.push({ type: 'strikeHit', x: o.x, y: o.y, r: o.r, kill: true }); }
         this.consume(o);
+        continue;
+      }
+      if (p.strikeT > 0) {
+        // claws wound what they cannot swallow
+        p.strikeT = 0;
+        o.hp -= o.maxHp * 0.35 + 40 * p.eraIndex;
+        o.stunT = 1.5; o.hurtT = 0.4;
+        o.mode = 'flee'; o.fleeX = p.x; o.fleeY = p.y; o.target = null; o.targetIsPlayer = false; o.restT = 4;
+        p.vx *= -0.3; p.vy *= -0.3;
+        this.events.push({ type: 'strikeHit', x: o.x, y: o.y, r: o.r, kill: o.hp <= 0 });
+        if (o.hp <= 0) { this.world.kill(o, false); if (o.sp.category === 'predator') this.milestone('first_predator'); if (o.sp.id === 'raptor') this.milestone('apex'); }
         continue;
       }
       // threat bites
@@ -434,7 +476,7 @@ export class Game {
   private absorb(n: Nutrient, ax: number, ay: number) {
     const p = this.player;
     n.absorbT = 0; n.absorbX = ax; n.absorbY = ay;
-    p.energy = Math.min(p.maxEnergy, p.energy + n.energy * p.stats.digestion);
+    p.energy = Math.min(p.maxEnergy, p.energy + n.energy * p.stats.digestion * p.stats.nutrientMult);
     p.growth += n.growth;
     this.run.nutrients++;
     if (n.dna) this.gainDna(n.dna);
@@ -456,7 +498,7 @@ export class Game {
     if (toxic) this.damage(p.maxHp * 0.18, 'toxin', o.sp);
     this.observe(o);
     const outgrown = Math.max(...o.sp.eras) < p.eraIndex;
-    const eraK = p.eraIndex === 1 ? 1 : p.eraIndex === 2 ? 0.32 : 0.2;
+    const eraK = p.eraIndex === 1 ? 1 : p.eraIndex === 2 ? 0.32 : p.eraIndex === 3 ? 0.2 : 0.11;
     const dnaRaw = o.sp.dna * Math.min(1.2, Math.max(0.25, rel * 1.6)) * (outgrown ? 0.3 : 1) * eraK;
     const dna = Math.floor(dnaRaw) + (Math.random() < dnaRaw % 1 ? 1 : 0);
     this.gainDna(dna);
@@ -465,6 +507,7 @@ export class Game {
     this.events.push({ type: 'eat', x: o.x, y: o.y, r: o.r, color: o.sp.look.glow, energy, dna, species: o.sp, toxic });
     this.milestone('first_meal');
     if (o.sp.category === 'predator') { this.run.predatorsEaten++; this.milestone('first_predator'); }
+    if (o.sp.id === 'raptor') this.milestone('apex');
     if (o.sp.category === 'rare') this.milestone('rare_feast');
   }
 
@@ -631,7 +674,7 @@ export class Game {
     } else if (p.growthFrac >= 1 && p.eraIndex === MAX_PLAYABLE_ERA && !this.frontierShown) {
       this.frontierShown = true;
       this.milestone('frontier');
-      this.events.push({ type: 'hint', id: 'frontier', text: 'You have reached the Cambrian frontier. Era IV awaits in a future evolution of PRIMORDIA.' });
+      this.events.push({ type: 'hint', id: 'frontier', text: `You have reached the edge of the known. Era ${ERAS[MAX_PLAYABLE_ERA].numeral} awaits in a future evolution of PRIMORDIA.` });
     }
   }
 
@@ -692,14 +735,28 @@ export class Game {
     p.energy = p.maxEnergy;
     p.hp = p.maxHp;
     p.transformT = 0;
+    // the sea opens up: rescale geography so the larger body has room to roam
+    const k = p.era.worldScale / this.env.scale;
+    if (Math.abs(k - 1) > 0.001) {
+      this.env.setScale(p.era.worldScale);
+      p.x *= k; p.y *= k; p.vx = 0; p.vy = 0;
+      p.trail.length = 0;
+      for (const sat of p.satellites) { sat.x = p.x; sat.y = p.y; }
+      this.world.clearLife();
+    }
     this.world.setEra(p.era);
-    this.world.maxOrgR = 140;
+    this.world.cx = p.x; this.world.cy = p.y;
+    // the camera pulls back after a leap; size the spawn bubble for the new body
+    this.viewR = Math.max(this.viewR, p.r * 24);
+    this.world.viewR = this.viewR;
+    this.world.collideRocks(p);
+    if (Math.abs(k - 1) > 0.001) this.world.populate(p.x, p.y, p.r * 8);
     this.progress.reachEra(p.eraIndex);
     const first = this.progress.discoverForm(p.form.id);
     this.run.formsReached.push(p.form.name);
     this.offers = generateOffers(p.traits, p.eraIndex);
     this.leapBlockedHint = false;
-    this.milestone(p.eraIndex === 2 ? 'era2' : 'era3');
+    this.milestone(p.eraIndex === 2 ? 'era2' : p.eraIndex === 3 ? 'era3' : 'era4');
     this.events.push({ type: 'leap', era: p.eraIndex, form: p.form, first });
     this.pendingLeapForm = null;
     this.state = 'playing';

@@ -7,6 +7,9 @@ import { bokehSprite, drawGlow, makeNebulaTile } from './sprites';
 import { Fx } from './fx';
 import { Microcosm } from './microcosm';
 import { lerpLook, type Look } from './look';
+import { DepthLife } from './depthLife';
+import { drawMetamorph, emergeScale } from './metamorph';
+import { META_SWAP } from '../game/game';
 
 interface Snow { x: number; y: number; s: number; d: number; a: number }
 
@@ -28,6 +31,14 @@ export class Renderer {
   time = 0;
   /** environmental layers: molecules, debris, distant life, flow, reactions */
   micro = new Microcosm();
+  /** Blender-rendered 3D microorganisms drifting in the parallax depths */
+  depth = new DepthLife();
+  /** looping caustic light (12 frames, tinted once on load) */
+  private caustics: HTMLCanvasElement | null = null;
+  /** old body captured when a metamorphosis begins */
+  private metaOld: Look | null = null;
+  /** scale of the player's body (emergence after a metamorphosis) */
+  private bodyScale = 1;
   /** food vacuoles digesting inside the player */
   food: FoodVacuole[] = [];
   /** evolutionary transformation: the body morphs from the old look into the new one */
@@ -44,6 +55,18 @@ export class Renderer {
     for (let i = 0; i < 90; i++) this.snow.push({ x: Math.random(), y: Math.random(), s: rand(0.5, 1.8), d: [0.25, 0.5, 0.8][i % 3], a: rand(0.15, 0.5) });
     for (let i = 0; i < 9; i++) this.bokeh.push({ x: Math.random(), y: Math.random(), s: rand(30, 90), d: rand(1.2, 1.6), a: rand(0.25, 0.6) });
     this.resize();
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d')!;
+      g.drawImage(img, 0, 0);
+      g.globalCompositeOperation = 'multiply';
+      g.fillStyle = '#a8fff0';
+      g.fillRect(0, 0, c.width, c.height);
+      this.caustics = c;
+    };
+    img.src = './assets/fx/caustics.webp';
   }
 
   /** Render resolution cap; lowered automatically on devices that struggle. */
@@ -53,6 +76,7 @@ export class Renderer {
   degrade(): boolean {
     if (this.maxDpr <= 1) return false;
     this.maxDpr = this.maxDpr > 1.5 ? 1.5 : 1;
+    this.depth.density = this.maxDpr > 1 ? 0.7 : 0.45;
     this.resize();
     return true;
   }
@@ -70,8 +94,9 @@ export class Renderer {
     v.width = Math.round(w / 2); v.height = Math.round(h / 2);
     const g = v.getContext('2d')!;
     const grad = g.createRadialGradient(v.width / 2, v.height / 2, Math.min(v.width, v.height) * 0.3, v.width / 2, v.height / 2, Math.hypot(v.width, v.height) * 0.55);
-    grad.addColorStop(0, 'rgba(0,4,10,0)');
-    grad.addColorStop(1, 'rgba(0,4,10,0.72)');
+    grad.addColorStop(0, 'rgba(0,3,8,0)');
+    grad.addColorStop(0.55, 'rgba(0,3,8,0.18)');
+    grad.addColorStop(1, 'rgba(0,2,6,0.86)');
     g.fillStyle = grad; g.fillRect(0, 0, v.width, v.height);
     this.vignette = v;
   }
@@ -79,7 +104,7 @@ export class Renderer {
   /** On-screen player radius in CSS px — keeps the organism readable on any device. */
   screenPlayerR() {
     const m = Math.min(this.w, this.h);
-    return 20 * Math.sqrt(m / 390);
+    return 24 * Math.sqrt(m / 390);
   }
 
   viewRadiusWorld() {
@@ -88,7 +113,12 @@ export class Renderer {
 
   updateCamera(game: Game, dt: number) {
     const p = game.player;
-    const targetZoom = this.bodyZoom(game) * (1 - game.danger * 0.08);
+    let targetZoom = this.bodyZoom(game) * (1 - game.danger * 0.08);
+    // metamorphosis: the camera leans in on the cyst, then eases back as the new body unfolds
+    if (game.state === 'metamorph') {
+      const mt = game.metaT;
+      targetZoom = this.bodyZoom(game) * (mt < META_SWAP ? 1 + 0.55 * Math.min(1, mt / META_SWAP) : 1.25);
+    }
     this.cam.zoom = damp(this.cam.zoom, targetZoom, 2.2, dt);
     const lead = 0.35;
     const tx = p.x + p.vx * lead, ty = p.y + p.vy * lead;
@@ -138,9 +168,13 @@ export class Renderer {
 
     // soft cytoplasmic clouds (parallax)
     ctx.globalCompositeOperation = 'lighter';
-    this.tile(this.nebulaA, cx * z * 0.05, cy * z * 0.05, (micro ? 0.2 : 0.65) + light * (micro ? 0.12 : 0.2), 1.4);
-    this.tile(this.nebulaB, cx * z * 0.12, cy * z * 0.12, (micro ? 0.1 : 0.35) + light * (micro ? 0.1 : 0.25), 1);
+    this.tile(this.nebulaA, cx * z * 0.05, cy * z * 0.05, (micro ? 0.14 : 0.34) + light * (micro ? 0.1 : 0.16), 1.4);
+    this.tile(this.nebulaB, cx * z * 0.12, cy * z * 0.12, (micro ? 0.1 : 0.24) + light * (micro ? 0.1 : 0.2), 1);
     ctx.globalCompositeOperation = 'source-over';
+
+    // caustic light rippling through the water: strongest in the sunlit shallows
+    const causticA = (this.caustics ? 1 : 0) * Math.pow(Math.max(0, light - 0.2), 1.3) * (micro ? 0.22 : 0.3) * (env.isLand(cx, cy) ? 0 : 1);
+    if (causticA > 0.01) this.drawCaustics(ctx, w, h, cx * z * 0.35, cy * z * 0.35, causticA);
 
     // sunlight shafts only once life is large enough to see the surface (Era IV+)
     if (!micro && light > 0.15) {
@@ -168,6 +202,11 @@ export class Renderer {
 
     // the living soup: distant cells, molecules, debris, flow and Brownian motion
     this.micro.drawBack(ctx, w, h, cx, cy, z, env, light, dt);
+    // 3D microorganisms in the depths (GITCRAFT MeshCraft renders)
+    this.depth.setEra(era);
+    ctx.globalCompositeOperation = 'lighter';
+    this.depth.draw(ctx, w, h, cx, cy, z, this.time, light, env.isLand(cx, cy) ? 0.12 : 1);
+    ctx.globalCompositeOperation = 'source-over';
 
     // drifting marine snow for the larger eras
     if (!micro) {
@@ -445,7 +484,14 @@ export class Renderer {
     }
 
     // player
-    if (game.state !== 'title' && (p.alive || game.state === 'dead')) this.drawPlayer(game, t, dt);
+    if (game.state === 'metamorph') {
+      if (!this.metaOld) this.metaOld = this.shownLook ?? p.look;
+      if (game.metaT < META_SWAP) drawMetamorph(ctx, p, game.metaEra, game.metaT, this.metaOld, t, z);
+      else { this.bodyScale = emergeScale(game.metaT); this.drawPlayer(game, t, dt); this.bodyScale = 1; drawMetamorph(ctx, p, game.metaEra, game.metaT, this.metaOld, t, z); }
+    } else {
+      this.metaOld = null;
+      if (game.state !== 'title' && (p.alive || game.state === 'dead')) this.drawPlayer(game, t, dt);
+    }
 
     // digestion
     for (let i = this.food.length - 1; i >= 0; i--) { this.food[i].k += dt / 4.5; if (this.food[i].k >= 1) this.food.splice(i, 1); }
@@ -615,7 +661,7 @@ export class Renderer {
       const d = Math.hypot(r.x - p.x, r.y - p.y) - r.r;
       if (d < p.r * 0.8 && d < best) { best = d; dentA = Math.atan2(r.y - p.y, r.x - p.x) - p.angle; dentK = 0.16 * (1 - Math.max(0, d) / (p.r * 0.8)); }
     }
-    drawOrganism(ctx, look, p.x, p.y, p.r * (1 + transform * 0.12), {
+    drawOrganism(ctx, look, p.x, p.y, p.r * (1 + transform * 0.12) * this.bodyScale, {
       dentA, dentK, food: this.food,
       seed: 3.7, t, speed: spd, angle: p.angle, alpha: deadK ? (p.hiddenT > 0 || (p.stats.stealth > 0 && p.stillT > 0.6) ? 0.55 : 1) : 0.35,
       hurt: p.hurtT > 0 ? p.hurtT * 2.5 : 0, flash: transform * 0.8, engulf: p.engulfT > 0 ? 1 : 0,
@@ -633,6 +679,8 @@ export class Renderer {
    */
   private displayLook(game: Game, dt: number): Look {
     const p = game.player;
+    // a metamorphosis shows the new body directly: the cyst already told the story of the change
+    if (game.state === 'metamorph') { this.shownLook = p.look; this.morphT = 1; return p.look; }
     if (this.shownLook !== p.look) {
       const prev = this.shownLook;
       // only morph while living (not on a fresh run or the title screen)
@@ -894,6 +942,22 @@ export class Renderer {
     ctx.strokeStyle = 'rgba(255,248,220,0.35)';
     ctx.lineWidth = band * 0.08;
     ctx.stroke();
+  }
+
+  private drawCaustics(ctx: CanvasRenderingContext2D, w: number, h: number, ox: number, oy: number, alpha: number) {
+    const img = this.caustics!;
+    const N = 256, S = Math.max(260, Math.min(w, h) * 0.8);
+    const fpos = (this.time * 4) % 12;
+    const f0 = Math.floor(fpos), f1 = (f0 + 1) % 12, k = fpos - f0;
+    const x0 = -mod(ox, S), y0 = -mod(oy, S);
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [f, a] of [[f0, 1 - k], [f1, k]] as const) {
+      ctx.globalAlpha = alpha * a;
+      const sx = (f % 4) * N, sy = Math.floor(f / 4) * N;
+      for (let y = y0; y < h; y += S) for (let x = x0; x < w; x += S) ctx.drawImage(img, sx, sy, N, N, x, y, S + 0.5, S + 0.5);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   private tile(img: HTMLCanvasElement, ox: number, oy: number, alpha: number, scale: number) {

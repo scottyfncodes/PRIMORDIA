@@ -1,5 +1,5 @@
 import './style.css';
-import { Game, type InputState } from './game/game';
+import { Game, META_SWAP, type InputState } from './game/game';
 import { Renderer } from './render/renderer';
 import { Input } from './engine/input';
 import { Audio } from './engine/audio';
@@ -70,7 +70,7 @@ function continueRun() {
 
 /** Save the current life (only while it is in progress). */
 function autosave() {
-  if (game.player.alive && ['playing', 'paused', 'evolve', 'leap'].includes(game.state)) runStore.save(snapshot(game));
+  if (game.player.alive && ['playing', 'paused', 'evolve', 'leap'].includes(game.state) || (game.state === 'metamorph' && game.metaT >= META_SWAP)) runStore.save(snapshot(game));
 }
 let autosaveT = 4;
 
@@ -180,7 +180,9 @@ function handleEvents() {
         renderer.cam.x = p.x; renderer.cam.y = p.y; // the sea may have been rescaled
         audio.setEra(e.era);
         autosave();
-        renderer.cam.zoom = renderer.bodyZoom(game) * 1.9; // pull back to reveal the bigger world
+        // pull back to reveal the bigger world (a metamorphosis keeps the camera close on the new body)
+        renderer.cam.zoom = renderer.bodyZoom(game) * (game.state === 'metamorph' ? 1.25 : 1.9);
+        fx.shards(p.x, p.y, 26, p.look.membrane, p.r * 5, p.r * 0.16);
         audio.leap();
         break;
       case 'discover':
@@ -222,6 +224,14 @@ function handleEvents() {
         audio.mutation();
         deathTimer = -1;
         break;
+      case 'grow':
+        // a visible growth step: the membrane swells outward in a ring of light
+        p.growPulse = 1;
+        fx.ring(p.x, p.y, p.r * 1.05, p.r * 2.4, p.look.membrane, 0.7);
+        fx.ring(p.x, p.y, p.r * 0.9, p.r * 1.6, '#c9a8ff', 0.5);
+        fx.burst(p.x, p.y, 16, '#c9a8ff', p.r * 3, p.r * 0.1);
+        audio.grow(e.stage);
+        break;
       case 'satellitePop':
         fx.burst(e.x, e.y, 12, p.look.glow, p.r * 3, p.r * 0.15);
         audio.blocked();
@@ -259,10 +269,10 @@ function frame(now: number) {
       game.update(STEP, inputState);
       acc -= STEP;
       steps++;
-      if (game.state !== 'playing') { acc = 0; break; }
+      if (game.state !== 'playing' && game.state !== 'metamorph') { acc = 0; break; }
     }
     if (steps >= 5) acc = 0;
-    if (game.state === 'playing' || game.state === 'dead') renderer.updateCamera(game, dt);
+    if (game.state === 'playing' || game.state === 'dead' || game.state === 'metamorph') renderer.updateCamera(game, dt);
     handleEvents();
   }
 
@@ -271,7 +281,8 @@ function frame(now: number) {
     if (game.state === 'evolve') { ui.showEvolve(); input.reset(); }
     else if (game.state === 'leap') { ui.showLeap(); input.reset(); }
     else if (game.state === 'dead') { deathTimer = 1.6; input.enabled = false; input.reset(); runStore.clear(); }
-    else if (game.state === 'playing' && (lastState === 'evolve' || lastState === 'leap')) { input.reset(); }
+    else if (game.state === 'metamorph') { input.reset(); audio.metamorph(game.metaEra); }
+    else if (game.state === 'playing' && (lastState === 'evolve' || lastState === 'leap' || lastState === 'metamorph')) { input.reset(); }
     lastState = game.state;
   }
   if (deathTimer > 0) {

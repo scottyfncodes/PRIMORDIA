@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <title>harden</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <polygon id="harden" points="12,3.2 19.6,7.6 19.6,16.4 12,20.8 4.4,16.4 4.4,7.6" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <polygon id="harden-2" data-name="harden" points="12,7.6 15.8,9.8 15.8,14.2 12,16.4 8.2,14.2 8.2,9.8" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="harden-3" data-name="harden" d="M12 3.2 L12 7.6 M19.6 16.4 L15.8 14.2 M4.4 16.4 L8.2 14.2" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,6 +1,6 @@
 import { clamp, mixHex, TAU } from '../engine/math';
 import { baseLook, type Look } from '../render/look';
-import { ARCHETYPE_PALETTE, BASE_PALETTE, ERAS, formFor, type EraDef, type FormDef } from './eras';
+import { ARCHETYPE_PALETTE, BASE_PALETTE, ERAS, FORM_GIFTS, formFor, type EraDef, type FormDef } from './eras';
 import { archetypeWeights, deriveStats, dominantArchetype, TRAIT_BY_ID, type AbilityId, type Archetype, type Stats, type TraitLevels } from './traits';
 
 export interface Satellite { a: number; alive: boolean; regrow: number; x: number; y: number }
@@ -86,6 +86,8 @@ export class Player {
   /** Recompute stats + visual look from traits / era / archetype. */
   refresh() {
     this.stats = deriveStats(this.traits, this.eraIndex);
+    // the body plan chosen at the last leap carries an inherited gift
+    if (this.eraIndex > 1 && this.form.archetype) FORM_GIFTS[this.form.archetype].apply(this.stats, this.eraIndex);
     this.archetype = dominantArchetype(this.traits);
     this.look = buildPlayerLook(this.traits, this.eraIndex, this.form);
     const n = this.stats.satellites;

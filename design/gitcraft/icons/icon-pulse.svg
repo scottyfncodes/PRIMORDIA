@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <title>pulse</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <circle id="pulse" cx="12" cy="12" r="2" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="pulse-2" data-name="pulse" d="M7.4 7.4 C6.179 8.619 5.492 10.274 5.492 12 C5.492 13.726 6.179 15.381 7.4 16.6 M16.6 7.4 C17.821 8.619 18.508 10.274 18.508 12 C18.508 13.726 17.821 15.381 16.6 16.6" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="pulse-3" data-name="pulse" d="M4.6 4.6 C2.621 6.554 1.508 9.219 1.508 12 C1.508 14.781 2.621 17.446 4.6 19.4 M19.4 4.6 C21.379 6.554 22.492 9.219 22.492 12 C22.492 14.781 21.379 17.446 19.4 19.4" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -378,3 +378,75 @@ describe('lineage history', () => {
     expect(h.player.history).toEqual(g.player.history);
   });
 });
+
+describe('branching leaps and metamorphosis', () => {
+  const growToLeap = (g: Game) => {
+    const p = g.player;
+    while (p.mutationCount < p.era.mutationsToLeap) p.addTrait(p.mutationCount % 2 ? 'membrane' : 'flagellum');
+    p.growth = p.era.growthNeeded;
+  };
+
+  it('offers the lineage path and a distinct alternative', async () => {
+    const { leapChoices } = await import('../src/game/eras');
+    const { archetypeWeights } = await import('../src/game/traits');
+    for (const era of [2, 3, 4, 5, 6]) {
+      const traits = { flagellum: 1, membrane: 1 };
+      const opts = leapChoices(era, archetypeWeights(traits), dominantArchetype(traits));
+      expect(opts).toHaveLength(2);
+      expect(opts[0].id).not.toBe(opts[1].id);
+      expect(opts.every((f) => f.era === era)).toBe(true);
+      expect(opts[0].archetype).toBe(dominantArchetype(traits));
+    }
+  });
+
+  it('the chosen branch becomes the form and grants its inherited gift', () => {
+    const g = new Game();
+    g.newRun();
+    growToLeap(g);
+    g.openLeap();
+    expect(g.state).toBe('leap');
+    const alt = g.leapOptions[1];
+    const before = deriveStats(g.player.traits, 2);
+    g.confirmLeap(1);
+    expect(g.player.eraIndex).toBe(2);
+    expect(g.player.form.id).toBe(alt.id);
+    const s = g.player.stats;
+    const changed = s.speed !== before.speed || s.damageTaken !== before.damageTaken || s.digestion !== before.digestion || s.photo !== before.photo;
+    expect(changed).toBe(true);
+  });
+
+  it('a cinematic leap encysts, swaps at the midpoint and returns to play', async () => {
+    const { META_SWAP, META_DUR } = await import('../src/game/game');
+    const g = new Game();
+    g.newRun();
+    growToLeap(g);
+    g.openLeap();
+    g.confirmLeap(0, true);
+    expect(g.state).toBe('metamorph');
+    const input = { mx: 1, my: 0, burst: true, abilities: {} };
+    let t = 0;
+    while (t < META_SWAP - 0.1) { g.update(1 / 60, input); t += 1 / 60; }
+    expect(g.player.eraIndex).toBe(1);
+    while (t < META_SWAP + 0.1) { g.update(1 / 60, input); t += 1 / 60; }
+    expect(g.player.eraIndex).toBe(2);
+    expect(g.state).toBe('metamorph');
+    while (t < META_DUR + 0.1) { g.update(1 / 60, input); t += 1 / 60; }
+    expect(g.state).toBe('playing');
+    expect(g.player.hp).toBeGreaterThan(0);
+  });
+
+  it('growth quarters emit growth-stage events once each', () => {
+    const g = new Game();
+    g.newRun();
+    const p = g.player;
+    const stages: number[] = [];
+    for (let k = 1; k <= 8; k++) {
+      p.growth = p.era.growthNeeded * (k / 8) * 0.99;
+      g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} });
+      for (const e of g.events) if (e.type === 'grow') stages.push(e.stage);
+      g.events.length = 0;
+      if (g.state !== 'playing') g.state = 'playing';
+    }
+    expect(stages).toEqual([1, 2, 3]);
+  });
+});

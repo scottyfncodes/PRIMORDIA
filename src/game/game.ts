@@ -6,10 +6,15 @@ import { SPECIES_BY_ID, type SpeciesDef } from '../sim/species';
 import { Player } from './player';
 import { Progress } from './progress';
 import { ABILITY_INFO, generateOffers, TRAIT_BY_ID, type AbilityId, type Offer } from './traits';
-import { ERAS, formFor, MAX_PLAYABLE_ERA, type FormDef } from './eras';
+import { ERAS, formFor, leapChoices, MAX_PLAYABLE_ERA, type FormDef } from './eras';
+import { archetypeWeights } from './traits';
 import { restoreInto, type RunSnapshot } from './save';
 
-export type GameState = 'title' | 'playing' | 'paused' | 'evolve' | 'leap' | 'dead';
+export type GameState = 'title' | 'playing' | 'paused' | 'evolve' | 'leap' | 'metamorph' | 'dead';
+
+/** Metamorphosis timing (seconds): the body encysts, transforms at META_SWAP, then emerges. */
+export const META_SWAP = 1.9;
+export const META_DUR = 3.6;
 
 export interface InputState {
   mx: number;
@@ -39,7 +44,8 @@ export type GameEvent =
   | { type: 'satellitePop'; x: number; y: number }
   | { type: 'strikeHit'; x: number; y: number; r: number; kill: boolean }
   | { type: 'tongue'; x1: number; y1: number; x2: number; y2: number }
-  | { type: 'revive'; x: number; y: number };
+  | { type: 'revive'; x: number; y: number }
+  | { type: 'grow'; stage: number };
 
 export interface RunStats {
   time: number;
@@ -101,6 +107,12 @@ export class Game {
   offers: Offer[] = [];
   evolveSnoozeDna = 0;
   pendingLeapForm: FormDef | null = null;
+  /** the branches of the tree open at the pending leap (first = where the lineage points) */
+  leapOptions: FormDef[] = [];
+  /** metamorphosis clock (−1 = none) and the era being entered */
+  metaT = -1;
+  metaEra = 0;
+  private metaSwapped = false;
   timeScale = 1;
   private tmp: Organism[] = [];
   private tmpN: Nutrient[] = [];
@@ -116,6 +128,8 @@ export class Game {
   frontierShown = false;
   leapBlockedHint = false;
   private safeT = 0;
+  /** growth quarter last celebrated in this era */
+  private growStage = 0;
 
   get playerLike(): PlayerLike {
     const p = this.player;
@@ -155,6 +169,7 @@ export class Game {
     p.onLand = this.env.isLand(p.x, p.y);
     p.hiddenT = 2.5;
     this.currentZone = this.env.zoneAt(p.x, p.y);
+    this.growStage = Math.floor(p.growthFrac * 4);
     this.state = 'playing';
     this.hintsShown.delete('!resume');
     this.hint('!resume', `Welcome back — your ${p.form.name} lineage continues`, true);
@@ -226,6 +241,7 @@ export class Game {
   // ───────────────────────────────────────── main update ─────────────────────────────────────────
   update(dt: number, input: InputState) {
     this.env.update(dt);
+    if (this.state === 'metamorph') { this.updateMetamorph(dt); return; }
     if (this.state !== 'playing') return;
     const p = this.player;
     this.run.time += dt;
@@ -741,6 +757,11 @@ export class Game {
     this.danger = nearest === Infinity ? 0 : clamp(1 - nearest / dangerR, 0, 1);
     if (this.danger > 0.2) this.safeT = 0; else this.safeT += dt;
 
+    // growth stages: each quarter of the way to the next era is a visible step
+    const stage = Math.min(4, Math.floor(p.growthFrac * 4 + 1e-6));
+    if (stage > this.growStage) { this.growStage = stage; if (stage < 4 || p.eraIndex === MAX_PLAYABLE_ERA) this.events.push({ type: 'grow', stage }); }
+    else if (stage < this.growStage) this.growStage = stage;
+
     // evolution availability
     const e = p.era;
     if (this.offers.length === 0) this.offers = generateOffers(p.traits, p.eraIndex);
@@ -807,11 +828,47 @@ export class Game {
   openLeap() {
     if (this.state !== 'playing') return;
     const p = this.player;
-    this.pendingLeapForm = formFor(p.eraIndex + 1, p.leapArchetype);
+    this.leapOptions = leapChoices(p.eraIndex + 1, archetypeWeights(p.traits, p.recentTraits), p.leapArchetype);
+    this.pendingLeapForm = this.leapOptions[0];
     this.state = 'leap';
   }
 
-  confirmLeap() {
+  /**
+   * Commit to a branch of the tree. With `cinematic` the body first encysts and
+   * transforms in the world (state 'metamorph'); without it the leap is instant.
+   */
+  confirmLeap(choice = 0, cinematic = false) {
+    if (this.state !== 'leap' || !this.pendingLeapForm) return;
+    this.pendingLeapForm = this.leapOptions[choice] ?? this.pendingLeapForm;
+    if (!cinematic) { this.applyLeap(); return; }
+    const p = this.player;
+    this.state = 'metamorph';
+    this.metaT = 0;
+    this.metaEra = p.eraIndex + 1;
+    this.metaSwapped = false;
+    p.vx *= 0.2; p.vy *= 0.2;
+  }
+
+  private updateMetamorph(dt: number) {
+    const p = this.player;
+    this.metaT += dt;
+    p.vx *= Math.exp(-3 * dt); p.vy *= Math.exp(-3 * dt);
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    if (!this.metaSwapped && this.metaT >= META_SWAP) {
+      this.metaSwapped = true;
+      this.state = 'leap';
+      this.applyLeap();
+      this.state = 'metamorph';
+    }
+    if (this.metaT >= META_DUR) {
+      this.metaT = -1;
+      this.state = 'playing';
+      this.safeT = 0;
+      p.hiddenT = Math.max(p.hiddenT, 1.5);
+    }
+  }
+
+  private applyLeap() {
     if (this.state !== 'leap' || !this.pendingLeapForm) return;
     const p = this.player;
     p.eraIndex++;

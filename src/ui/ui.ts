@@ -1,7 +1,7 @@
 import type { Game, GameEvent } from '../game/game';
 import { MILESTONES } from '../game/game';
 import { ABILITY_INFO, TRAITS, TRAIT_BY_ID, type AbilityId, type Archetype, type Offer } from '../game/traits';
-import { ARCHETYPE_INFO, ERAS, FORMS, FORM_BY_ID, MAX_PLAYABLE_ERA, formFor, type FormDef } from '../game/eras';
+import { ARCHETYPE_INFO, ERAS, FORMS, FORM_BY_ID, FORM_GIFTS, MAX_PLAYABLE_ERA, formFor, type FormDef } from '../game/eras';
 import { buildPlayerLook, type Player } from '../game/player';
 import { SPECIES, SPECIES_BY_ID, type SpeciesDef } from '../sim/species';
 import { ZONES, type ZoneId } from '../sim/environment';
@@ -10,6 +10,7 @@ import { behaviour, characteristics, cladeOf, habitat, relations, specimenNo } f
 import type { Audio } from '../engine/audio';
 import type { Input } from '../engine/input';
 import type { RunSnapshot } from '../game/save';
+import { icon } from './icons';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const h = (tag: string, cls = '', html = '') => {
@@ -66,6 +67,10 @@ export class UI {
   private dnaBtn = $('dna-btn');
   private formName = $('form-name');
   private eraChip = $('era-chip');
+  private pips = $('mut-pips');
+  private pipKey = '';
+  private leapShown = false;
+  private dnaReady = document.querySelector('#dna-btn .dna-ready') as HTMLElement;
   private abilityWrap = $('ability-btns');
   private burstBtn = $('burst-btn');
   private hintEl = $('hint');
@@ -84,11 +89,15 @@ export class UI {
   current: string | null = null;
 
   constructor(private game: Game, private audio: Audio, private input: Input, private cb: UiCallbacks) {
+    // static HUD icons (GITCRAFT VectorCraft set)
+    document.querySelectorAll<HTMLElement>('[data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon!); });
     this.burstBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); this.input.pressBurst(); this.pressFx(this.burstBtn); }, { passive: false });
     this.burstBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); this.input.pressBurst(); this.pressFx(this.burstBtn); });
     const openEvolve = (e: Event) => {
       e.preventDefault(); e.stopPropagation();
-      if (this.game.state === 'playing' && this.game.offers.length) { this.game.openEvolve(); }
+      if (this.game.state !== 'playing') return;
+      if (this.game.leapAvailable) this.game.openLeap();
+      else if (this.game.offers.length) this.game.openEvolve();
     };
     this.dnaBtn.addEventListener('touchstart', openEvolve, { passive: false });
     this.dnaBtn.addEventListener('mousedown', openEvolve);
@@ -96,7 +105,7 @@ export class UI {
     $('pause-btn').addEventListener('touchstart', pause, { passive: false });
     $('pause-btn').addEventListener('mousedown', pause);
     this.input.onPause = () => this.togglePause();
-    this.input.onEvolveKey = () => { if (this.game.state === 'playing') this.game.openEvolve(); };
+    this.input.onEvolveKey = () => { if (this.game.state === 'playing') { if (this.game.leapAvailable) this.game.openLeap(); else this.game.openEvolve(); } };
   }
 
   private pressFx(el: HTMLElement) {
@@ -153,18 +162,41 @@ export class UI {
       const next = ERAS[p.eraIndex];
       if (p.eraIndex < MAX_PLAYABLE_ERA && next) {
         const need = p.era.mutationsToLeap - p.mutationCount;
-        this.growthLabel.textContent = gf >= 100 ? (need > 0 ? `${need} more mutation${need > 1 ? 's' : ''} to leap` : `Ready for Era ${next.numeral}`) : `Growth → Era ${next.numeral}`;
+        this.growthLabel.textContent = gf >= 100 ? (need > 0 ? `Fully grown · ${need} more mutation${need > 1 ? 's' : ''} to leap` : `Ready for Era ${next.numeral}`) : `Grow ${Math.floor(gf)}% → Era ${next.numeral} · ${next.name}`;
+        this.growthFill.parentElement!.classList.toggle('full', gf >= 100);
       } else {
         this.growthLabel.textContent = gf >= 100 ? 'Cambrian frontier reached' : 'Growth → Frontier';
       }
     }
-    if (p.dna !== L.dna) { L.dna = p.dna; this.dnaCount.textContent = String(p.dna); }
-    const evolve = g.evolveAvailable;
-    if (evolve !== L.evolve) { L.evolve = evolve; this.dnaBtn.classList.toggle('ready', evolve); }
+    // mutations toward the next leap, as pips beside the growth bar
+    const needM = p.eraIndex < MAX_PLAYABLE_ERA ? p.era.mutationsToLeap : 0;
+    const haveM = Math.min(needM, p.mutationCount);
+    const pk = `${needM}|${haveM}`;
+    if (pk !== this.pipKey) {
+      this.pipKey = pk;
+      // a handful of pips reads at a glance; longer requirements become a count
+      this.pips.innerHTML = needM <= 5
+        ? Array.from({ length: needM }, (_, i) => `<i class="${i < haveM ? 'on' : ''}"></i>`).join('')
+        : `<i class="${haveM >= needM ? 'on' : ''}"></i><b class="${haveM >= needM ? 'on' : ''}">${haveM}/${needM}</b>`;
+      this.pips.title = `${haveM}/${needM} mutations for the next leap`;
+    }
+    if (p.dna !== L.dna) {
+      const gained = L.dna >= 0 && p.dna > L.dna;
+      L.dna = p.dna; this.dnaCount.textContent = String(p.dna);
+      if (gained) { this.dnaBtn.classList.remove('gain'); void this.dnaBtn.offsetWidth; this.dnaBtn.classList.add('gain'); }
+    }
+    const leap = g.leapAvailable;
+    const evolve = g.evolveAvailable || leap;
+    if (evolve !== L.evolve || leap !== this.leapShown) {
+      L.evolve = evolve; this.leapShown = leap;
+      this.dnaBtn.classList.toggle('ready', evolve);
+      this.dnaBtn.classList.toggle('leap', leap);
+      this.dnaReady.textContent = leap ? 'Leap' : 'Evolve';
+    }
     if (p.form.name !== L.form || p.eraIndex !== L.era) {
       L.form = p.form.name; L.era = p.eraIndex;
       this.formName.textContent = p.form.name;
-      this.eraChip.textContent = `Era ${p.era.numeral}`;
+      this.eraChip.textContent = `Era ${p.era.numeral} · ${p.era.name}`;
     }
     const zn = ZONES[g.currentZone].name;
     if (zn !== L.zone) { L.zone = zn; this.zoneLabel.textContent = zn; this.zoneLabel.classList.remove('flash'); void this.zoneLabel.offsetWidth; this.zoneLabel.classList.add('flash'); }
@@ -198,7 +230,7 @@ export class UI {
     this.input.slots = ids.slice();
     ids.forEach((id, i) => {
       const info = ABILITY_INFO[id];
-      const b = h('button', `act ability a-${id}`, `<span class="ic">${info.icon}</span><span class="lb">${info.name}</span>`) as HTMLButtonElement;
+      const b = h('button', `act ability a-${id}`, `<span class="ic">${icon(id) || info.icon}</span><span class="lb">${info.name}</span>`) as HTMLButtonElement;
       // arrange in two arcs around the Burst button (centre 42px from the corner)
       const ring = i < 3 ? 0 : 1;
       const R = ring === 0 ? 96 : 160;
@@ -224,7 +256,7 @@ export class UI {
   private specimenToast(sp: SpeciesDef, dna: number) {
     const t = h('div', 'toast specimen');
     t.innerHTML = `<div class="sp-art"></div><div class="sp-txt"><div class="t-k">New species catalogued${dna ? ` · <b>+${dna} DNA</b>` : ''}</div><div class="t-t">${sp.name}</div><div class="t-l">${sp.latin} · No. ${specimenNo(sp)}</div></div>`;
-    const pc = new PreviewCanvas(sp.look, 'sp-canvas', previewScale(sp.look) * 1.05);
+    const pc = new PreviewCanvas(sp.look, 'sp-canvas', previewScale(sp.look) * 0.85);
     t.querySelector('.sp-art')!.appendChild(pc.canvas);
     this.toastPreviews.push(pc);
     this.toasts.appendChild(t);
@@ -254,6 +286,7 @@ export class UI {
       if (sp) this.specimenToast(sp, e.dna); else this.toast(e.title, e.sub, e.kind, e.dna);
     }
     else if (e.type === 'leap') this.showEraCard(e.era);
+    else if (e.type === 'grow') { const g = this.growthFill.parentElement!; g.classList.remove('stage'); void g.offsetWidth; g.classList.add('stage'); }
     else if (e.type === 'mutation') {
       const t = TRAIT_BY_ID[e.traitId];
       this.toast(t.levels[e.level - 1].name, e.first ? 'New mutation discovered' : 'Mutation acquired', 'mutation', 0);
@@ -309,6 +342,7 @@ export class UI {
         <div class="logo-cell"></div>
         <h1 class="logo">PRIMORDIA</h1>
         <p class="tagline">Begin as a single cell. Become whatever survives.</p>
+        <div class="loop-line"><span>${icon('energy')}Eat</span><i></i><span>${icon('growth')}Grow</span><i></i><span>${icon('dna')}Evolve</span><i></i><span>${icon('integrity')}Survive</span></div>
         ${saved ? `<div class="continue-card"><div class="cc-art"></div><div class="cc-body"><div class="ev-k">Saved life</div><div class="cc-name">${savedForm}</div><div class="cc-meta">Era ${ERAS[saved.player.eraIndex - 1].numeral} · ${fmtTime(saved.run.time)} alive · ${Object.values(saved.player.traits).reduce((a, b) => a + b, 0)} mutations</div></div></div>
         <button class="btn primary" id="t-continue">Continue</button>` : ''}
         <button class="btn ${saved ? 'ghost' : 'primary'}" id="t-start">${d.records.runs ? 'Begin a New Life' : 'Begin Life'}</button>
@@ -468,29 +502,49 @@ export class UI {
   showLeap() {
     this.previews = [];
     const g = this.game, p = g.player;
-    const form = g.pendingLeapForm!;
     const next = ERAS[p.eraIndex];
+    const options = g.leapOptions.length ? g.leapOptions : [g.pendingLeapForm!];
+    let pick = 0;
     const el = h('div', 'leap-screen');
-    const arch = ARCHETYPE_INFO[form.archetype ?? p.archetype];
     el.innerHTML = `
       <div class="leap-inner">
-        <div class="ev-k">Evolutionary leap</div>
-        <h2>Era ${next.numeral} · ${next.name}</h2>
-        <p class="muted">${next.subtitle}</p>
-        <div class="leap-art"><div class="leap-from"></div><div class="leap-arrow">→</div><div class="leap-to"></div></div>
-        <div class="leap-form">${form.name}</div>
-        <div class="leap-arch">Lineage: <b>${arch.name}</b> — ${arch.blurb}</div>
-        <p class="leap-desc">${form.desc}</p>
-        <p class="leap-note">${next.worldScale > p.era.worldScale ? 'Your body grows and the sea opens up around you. New life fills it — and new mutations become possible.' : 'Your body grows. New life fills the sea — and new mutations become possible.'}</p>
-        <button class="btn primary" id="lp-go">Transform</button>
+        <div class="ev-k">Evolutionary leap · Era ${next.numeral}</div>
+        <h2>${next.name}</h2>
+        <p class="leap-sub">${next.subtitle}. Your lineage can branch two ways.</p>
+        <div class="leap-now"><div class="leap-from"></div><span>Your ${p.form.name} today</span></div>
+        <div class="branches"></div>
+        <button class="btn primary big" id="lp-go">Transform</button>
+        <p class="leap-note">${next.worldScale > p.era.worldScale ? 'The sea opens up around your larger body.' : 'New life will fill the sea around you.'} New mutations become possible.</p>
       </div>`;
     const from = new PreviewCanvas(p.look, 'leap-canvas small', 0.26);
-    const toLook = buildPlayerLook(p.traits, p.eraIndex + 1, form);
-    const to = new PreviewCanvas(toLook, 'leap-canvas', 0.3);
     el.querySelector('.leap-from')!.appendChild(from.canvas);
-    el.querySelector('.leap-to')!.appendChild(to.canvas);
-    this.previews.push(from, to);
-    el.querySelector('#lp-go')!.addEventListener('click', () => { g.confirmLeap(); this.closeScreen(); });
+    this.previews.push(from);
+    const wrap = el.querySelector('.branches')!;
+    const cards: HTMLElement[] = [];
+    options.forEach((form, i) => {
+      const arch = form.archetype ?? p.archetype;
+      const gift = FORM_GIFTS[arch];
+      const card = h('button', `branch ${i === 0 ? 'on' : ''} arch-${arch}`);
+      card.innerHTML = `
+        <div class="br-art"></div>
+        <div class="br-body">
+          <div class="br-tag">${i === 0 ? 'Where your mutations lead' : 'An unexpected branch'}</div>
+          <div class="br-name">${form.name}</div>
+          <div class="br-arch">${ARCHETYPE_INFO[arch].name}</div>
+          <p class="br-desc">${form.desc}</p>
+          <div class="br-gift"><b>${gift.name}</b>${gift.lines.map((x) => `<span>${x}</span>`).join('')}</div>
+        </div>`;
+      const pc = new PreviewCanvas(buildPlayerLook(p.traits, p.eraIndex + 1, form), 'leap-canvas', 0.3);
+      card.querySelector('.br-art')!.appendChild(pc.canvas);
+      this.previews.push(pc);
+      card.addEventListener('click', () => {
+        pick = i; this.audio.ui();
+        cards.forEach((c, k) => c.classList.toggle('on', k === i));
+      });
+      cards.push(card);
+      wrap.appendChild(card);
+    });
+    el.querySelector('#lp-go')!.addEventListener('click', () => { g.confirmLeap(pick, true); this.closeScreen(); });
     this.open('leap', el);
   }
 

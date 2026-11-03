@@ -122,3 +122,25 @@ export function formFor(era: number, archetype: Archetype): FormDef {
   if (era <= 1) return FORM_BY_ID['protocell'];
   return FORMS.find((f) => f.era === era && f.archetype === archetype) || FORM_BY_ID['protocell'];
 }
+
+/**
+ * Inherited gifts: the body plan you choose at a leap carries a lasting, era-scaled
+ * advantage, so choosing a branch of the tree is a real decision, not a cosmetic one.
+ */
+export interface FormGift { name: string; lines: string[]; apply: (s: import('./traits').Stats, era: number) => void }
+export const FORM_GIFTS: Record<Archetype, FormGift> = {
+  predator: { name: 'Hunter\'s Body', lines: ['+8% top speed', 'Swallows slightly larger prey'], apply: (s, e) => { s.speed *= 1 + 0.04 + 0.01 * e; s.eatRatio += 0.03 + 0.005 * e; s.strikeRatio += 0.05; } },
+  defender: { name: 'Armoured Body', lines: ['−15% damage taken', '+15% integrity'], apply: (s, e) => { s.damageTaken *= 0.88 - 0.006 * e; s.maxHp *= 1.1 + 0.01 * e; } },
+  opportunist: { name: 'Forager\'s Body', lines: ['+12% energy from food', 'Wider nutrient pull'], apply: (s, e) => { s.digestion *= 1.08 + 0.008 * e; s.magnet += 0.35 + 0.05 * e; } },
+  phototroph: { name: 'Sun-Drinker\'s Body', lines: ['Draws energy from light', '−10% metabolic drain'], apply: (s) => { s.photo += 0.8; s.metabolism *= 0.9; } },
+};
+
+/**
+ * The branches open to a lineage at a leap: the path its mutations point to, then the
+ * strongest alternative. Ties fall back to a fixed order so the choice is deterministic.
+ */
+export function leapChoices(era: number, weights: Record<Archetype, number>, dominant: Archetype): FormDef[] {
+  const order: Archetype[] = ['predator', 'defender', 'opportunist', 'phototroph'];
+  const rest = order.filter((a) => a !== dominant).sort((a, b) => weights[b] - weights[a] || order.indexOf(a) - order.indexOf(b));
+  return [formFor(era, dominant), formFor(era, rest[0])];
+}

@@ -26,16 +26,22 @@
       <div id="hud" hidden>
         <div class="hud-top">
           <div class="hud-left">
-            <div class="org-line"><span id="form-name">Protocell</span><span class="era-chip" id="era-chip">Era I</span></div>
+            <div class="era-line" id="era-chip">Era I · Primordial Life</div>
+            <div class="org-line"><span id="form-name">Protocell</span></div>
             <div class="bars">
-              <div class="bar energy" title="Energy"><span class="b-ic">⚡</span><div class="b-track"><i id="energy-fill"></i></div></div>
-              <div class="bar integrity" title="Integrity"><span class="b-ic">◍</span><div class="b-track"><i id="hp-fill"></i></div></div>
-              <div class="bar breath" id="breath-bar" title="Breath" hidden><span class="b-ic">○</span><div class="b-track"><i id="breath-fill"></i></div></div>
+              <div class="bar energy" title="Energy"><span class="b-ic" data-icon="energy"></span><div class="b-track"><i id="energy-fill"></i></div></div>
+              <div class="bar integrity" title="Integrity"><span class="b-ic" data-icon="integrity"></span><div class="b-track"><i id="hp-fill"></i></div></div>
+              <div class="bar breath" id="breath-bar" title="Breath" hidden><span class="b-ic" data-icon="breath"></span><div class="b-track"><i id="breath-fill"></i></div></div>
             </div>
-            <div class="growth"><div class="growth-bar"><i id="growth-fill"></i></div><span id="growth-label">Growth → Era II</span></div>
+            <div class="growth">
+              <span class="b-ic" data-icon="growth"></span>
+              <div class="growth-bar"><i id="growth-fill"></i></div>
+              <div class="pips" id="mut-pips" aria-label="Mutations toward the next era"></div>
+            </div>
+            <div id="growth-label">Growth → Era II</div>
           </div>
           <div class="hud-right">
-            <button id="dna-btn" class="dna" aria-label="Evolve"><span class="helix-ic"></span><span id="dna-count">0</span><span class="dna-ready">EVOLVE</span></button>
+            <button id="dna-btn" class="dna" aria-label="Evolve"><span class="dna-ic" data-icon="dna"></span><span id="dna-count">0</span><span class="dna-ready">Evolve</span></button>
             <button id="pause-btn" aria-label="Pause"><span></span><span></span></button>
           </div>
         </div>
@@ -46,7 +52,7 @@
         <div id="hint"></div>
         <div class="actions">
           <div id="ability-btns"></div>
-          <button id="burst-btn" class="act big" aria-label="Burst"><span class="ic">⟫</span><span class="lb">Burst</span></button>
+          <button id="burst-btn" class="act big" aria-label="Burst"><span class="ic" data-icon="burst"></span><span class="lb">Burst</span></button>
         </div>
       </div>
       <div id="screens"></div>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <title>burst</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <circle id="burst" cx="17" cy="12" r="4" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="burst-2" data-name="burst" d="M2.5 9.4 C4 8.1 5.5 10.7 7 9.4 C8.5 8.1 10 10.7 11.5 9.4" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="burst-3" data-name="burst" d="M2.5 14.6 C4 13.3 5.5 15.9 7 14.6 C8.5 13.3 10 15.9 11.5 14.6" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <line id="burst-4" data-name="burst" x1="4.5" y1="12" x2="9.5" y2="12" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

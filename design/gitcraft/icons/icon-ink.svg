@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <title>ink</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path id="ink" d="M7.6 17.4 C5.815 17.293 4.379 15.892 4.228 14.11 C4.078 12.328 5.258 10.705 7 10.3 C7.058 7.843 8.859 5.777 11.285 5.385 C13.711 4.993 16.071 6.386 16.9 8.7 C19.086 8.88 20.806 10.643 20.931 12.833 C21.057 15.023 19.551 16.971 17.4 17.4 Z" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="ink-2" data-name="ink" d="M9 20.6 L9.01 20.6 M13 21 L13.01 21 M16.5 20.4 L16.51 20.4" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

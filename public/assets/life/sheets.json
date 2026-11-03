@@ -1,0 +1,27 @@
+{
+ "diatom": {
+  "frames": 16,
+  "cols": 4,
+  "cell": 128
+ },
+ "radiolarian": {
+  "frames": 16,
+  "cols": 4,
+  "cell": 128
+ },
+ "volvox": {
+  "frames": 16,
+  "cols": 4,
+  "cell": 128
+ },
+ "medusa": {
+  "frames": 16,
+  "cols": 4,
+  "cell": 128
+ },
+ "ctenophore": {
+  "frames": 16,
+  "cols": 4,
+  "cell": 128
+ }
+}

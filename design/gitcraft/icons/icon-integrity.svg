@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <title>integrity</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <circle id="integrity" cx="12" cy="12" r="8.4" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle id="integrity-2" data-name="integrity" cx="12" cy="12" r="4.8" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="integrity-3" data-name="integrity" d="M12 3.6 L12 7.2 M12 16.8 L12 20.4 M3.6 12 L7.2 12 M16.8 12 L20.4 12" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <title>engulf</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path id="engulf" d="M17.6 6.2 C14.397 2.999 9.206 3 6.005 6.202 C2.803 9.404 2.803 14.596 6.005 17.798 C9.206 21 14.397 21.001 17.6 17.8" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="engulf-2" data-name="engulf" d="M17.6 6.2 C15.9 7.1 14.7 8.5 14.2 10.1" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="engulf-3" data-name="engulf" d="M17.6 17.8 C15.9 16.9 14.7 15.5 14.2 13.9" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle id="engulf-4" data-name="engulf" cx="15.6" cy="12" r="1.8" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

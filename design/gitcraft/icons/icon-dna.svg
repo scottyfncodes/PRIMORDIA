@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <title>dna</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path id="dna" d="M7.5 2.8 C7.5 8.8 16.5 8.8 16.5 12 C16.5 15.2 7.5 15.2 7.5 21.2" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="dna-2" data-name="dna" d="M16.5 2.8 C16.5 8.8 7.5 8.8 7.5 12 C7.5 15.2 16.5 15.2 16.5 21.2" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="dna-3" data-name="dna" d="M9 6 L15 6 M9.6 12 L14.4 12 M9 18 L15 18" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <title>breath</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <circle id="breath" cx="10.5" cy="13" r="6.5" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle id="breath-2" data-name="breath" cx="18" cy="5.4" r="2.4" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="breath-3" data-name="breath" d="M7.2 12.4 C7.409 10.894 8.594 9.709 10.1 9.5" fill="none" stroke="#e8fffa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

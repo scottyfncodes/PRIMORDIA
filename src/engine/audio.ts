@@ -312,6 +312,27 @@ export class Audio {
     this.tone(55, 4, 3, 0.25, 'sawtooth', 1.2);
     [0, 7, 12, 16, 19, 24].forEach((s, i) => setTimeout(() => this.tone(220 * Math.pow(2, s / 12), 1, 3, 0.07, 'sine', 0.3), 400 + i * 160));
   }
+  /** Metamorphosis: a heartbeat inside the cyst quickens under a rising swell (the leap cue lands at the swap). */
+  metamorph(era: number) {
+    if (!this.ctx) return;
+    const base = 46 + era * 4;
+    let t = 0, gap = 0.62;
+    for (let i = 0; i < 9 && t < 1.75; i++) {
+      const at = t;
+      setTimeout(() => { if (!this.ctx) return; this.tone(base, 0.55, 0.32, 0.22, 'sine', 0.004); this.tone(base * 2, 0.6, 0.12, 0.05, 'triangle', 0.003); }, at * 1000);
+      t += gap; gap *= 0.78;
+    }
+    this.noise(1.9, 300, 0.12, 0.7, 'bandpass', 9);
+    this.tone(base * 4, 1.5, 1.9, 0.04, 'sine', 1.4);
+  }
+  /** A quarter of the way to the next era: the body visibly swells. */
+  grow(stage: number) {
+    if (!this.ctx) return;
+    const f = 392 * Math.pow(2, [0, 4, 7, 12][stage % 4] / 12);
+    this.tone(f, 1, 1.1, 0.05, 'sine', 0.01);
+    this.tone(f * 1.5, 1.003, 0.9, 0.025, 'sine', 0.03);
+    this.tone(70, 1.4, 0.5, 0.08, 'sine', 0.02);
+  }
   death() {
     if (!this.ctx) return;
     this.tone(330, 0.25, 2.5, 0.2, 'triangle', 0.01);

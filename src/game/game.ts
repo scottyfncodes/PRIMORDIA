@@ -66,6 +66,12 @@ export interface RunStats {
   lastDamage: { cause: string; t: number; sp: SpeciesDef | null };
 }
 
+/** Era VII: base-unit distance the coastline moves south as the land rises. */
+const INLAND_VII = 900;
+/** Gentle Tides assist: damage and metabolic drain multipliers. */
+const ASSIST_DAMAGE = 0.6;
+const ASSIST_DRAIN = 0.8;
+
 const newRunStats = (): RunStats => ({
   time: 0, eaten: 0, nutrients: 0, dna: 0, predatorsEaten: 0, damageTaken: 0, photoEnergy: 0,
   zones: new Set(), speciesSeen: new Set(), discoveries: [], milestones: [], formsReached: [],
@@ -151,6 +157,7 @@ export class Game {
     const era = ERAS[s.player.eraIndex - 1];
     this.env.setScale(era.worldScale);
     this.env.land = s.player.eraIndex >= 6;
+    this.env.inland = s.player.eraIndex >= 7 ? INLAND_VII : 0;
     this.player.reset(s.player.x, s.player.y);
     this.run = newRunStats();
     restoreInto(this, s);
@@ -178,6 +185,7 @@ export class Game {
   newRun() {
     this.env.setScale(1);
     this.env.land = false;
+    this.env.inland = 0;
     this.player.reset(PLAYER_SPAWN.x + rand(-80, 80), PLAYER_SPAWN.y + rand(-80, 80));
     this.world.reset(ERAS[0]);
     this.player.form = formFor(1, 'opportunist');
@@ -224,6 +232,7 @@ export class Game {
     this.state = 'title';
     this.env.setScale(1);
     this.env.land = false;
+    this.env.inland = 0;
     this.world.reset(ERAS[0]);
     this.world.runTime = 120;
     this.world.cx = PLAYER_SPAWN.x; this.world.cy = PLAYER_SPAWN.y;
@@ -625,6 +634,8 @@ export class Game {
   damage(amount: number, cause: string, sp: SpeciesDef | null) {
     const p = this.player;
     if (amount <= 0) return;
+    // Gentle Tides (assist setting): the world bites softer
+    if (this.progress.data.settings.assist) amount *= ASSIST_DAMAGE;
     p.hp -= amount;
     p.hurtT = 0.35; p.sinceHurt = 0;
     this.run.damageTaken += amount;
@@ -636,6 +647,7 @@ export class Game {
     const light = this.env.light(p.x, p.y);
     const speedFrac = clamp(Math.hypot(p.vx, p.vy) / (p.maxSpeed || 1), 0, 1.5);
     let drain = e.drain * st.metabolism * (0.75 + speedFrac * 0.4);
+    if (this.progress.data.settings.assist) drain *= ASSIST_DRAIN;
     if (st.photo > 0) {
       if (light < 0.22) drain *= st.darkPenalty;
       if (light >= st.photoMinLight) {
@@ -782,7 +794,7 @@ export class Game {
     } else if (p.growthFrac >= 1 && p.eraIndex === MAX_PLAYABLE_ERA && !this.frontierShown) {
       this.frontierShown = true;
       this.milestone('frontier');
-      this.events.push({ type: 'hint', id: 'frontier', text: ERAS[MAX_PLAYABLE_ERA] ? `You have reached the edge of the known. Era ${ERAS[MAX_PLAYABLE_ERA].numeral} awaits in a future evolution of PRIMORDIA.` : 'You have walked out of the sea and grown to your full size. The story of life on land is only beginning.' });
+      this.events.push({ type: 'hint', id: 'frontier', text: ERAS[MAX_PLAYABLE_ERA] ? `You have reached the edge of the known. Era ${ERAS[MAX_PLAYABLE_ERA].numeral} awaits in a future evolution of PRIMORDIA.` : 'You have grown into one of the giants of the land. The age of the dinosaurs is still to come.' });
     }
   }
 
@@ -889,13 +901,14 @@ export class Game {
       for (const sat of p.satellites) { sat.x = p.x; sat.y = p.y; }
       this.world.clearLife();
     }
-    // Era VI: the sea gains a shoreline and dry land
+    // Era VI: the sea gains a shoreline and dry land; Era VII: the continent grows
     this.env.land = p.eraIndex >= 6;
-    if (this.env.land) {
+    this.env.inland = p.eraIndex >= 7 ? INLAND_VII : 0;
+    if (this.env.land && p.eraIndex < 7) {
       let guard = 0;
       while (this.env.isLand(p.x, p.y) && guard++ < 200) p.y += p.r;
-      p.breath = 1;
     }
+    p.breath = 1;
     this.world.setEra(p.era);
     this.world.cx = p.x; this.world.cy = p.y;
     // the camera pulls back after a leap; size the spawn bubble for the new body

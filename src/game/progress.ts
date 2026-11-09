@@ -17,7 +17,7 @@ export interface SaveData {
     totalEaten: number;
     deaths: Record<string, number>;
   };
-  settings: { sound: boolean; music: boolean; controls: 'joystick' | 'drag' };
+  settings: { sound: boolean; music: boolean; controls: 'joystick' | 'drag'; haptics: boolean; assist: boolean };
   tutorialDone: boolean;
   /** form ids of the most recent life's lineage (for the Tree of Life) */
   lastLineage?: string[];
@@ -32,7 +32,7 @@ export const freshSave = (): SaveData => ({
   zones: {},
   milestones: {},
   records: { runs: 0, bestTime: 0, bestDna: 0, mostEaten: 0, totalEaten: 0, deaths: {} },
-  settings: { sound: true, music: true, controls: 'joystick' },
+  settings: { sound: true, music: true, controls: 'joystick', haptics: true, assist: false },
   tutorialDone: false,
 });
 

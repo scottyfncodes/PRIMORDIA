@@ -1210,6 +1210,27 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.stroke();
   }
 
+  // neck frill: a fan of skin flaring around the neck (drawn under the body)
+  if (l.frill) {
+    const fi = Math.max(1, Math.round(N * 0.2));
+    const flare = 1 + 0.08 * Math.sin(t * 1.6 + seed);
+    const fr = SW[fi] * 1.9 * flare;
+    ctx.save();
+    ctx.translate(SX[fi], SY[fi]);
+    ctx.rotate(Math.atan2(SNY[fi], SNX[fi]) - Math.PI / 2);
+    ctx.fillStyle = rgba(l.glow, 0.32 * alpha);
+    ctx.strokeStyle = rgba(l.membrane, 0.85 * alpha);
+    ctx.lineWidth = Math.max(0.6, r * 0.03);
+    ctx.beginPath();
+    for (let k = 0; k <= 14; k++) {
+      const a = Math.PI * 0.5 + (k / 14 - 0.5) * Math.PI * 1.5;
+      const rr = fr * (k % 2 ? 0.86 : 1);
+      if (k === 0) ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); else ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
   // body outline
   ctx.beginPath();
   ctx.moveTo(SX[0] + r * 0.12, SY[0]);
@@ -1580,6 +1601,69 @@ function drawVertebrateDetails(ctx: CanvasRenderingContext2D, l: Look, r: number
           const px = mx + r * 0.05 - u * r * 0.3, py = side * mw * (open + u * (1 - open)) * 0.95;
           ctx.beginPath(); ctx.moveTo(px - r * 0.025, py); ctx.lineTo(px + r * 0.025, py); ctx.lineTo(px, py - side * r * 0.05); ctx.closePath(); ctx.fill();
         }
+      }
+    }
+  }
+  // dorsal sail: long neural spines webbed with skin, along the back
+  if (l.sail) {
+    const a0 = Math.round(N * 0.2), a1 = Math.round(N * 0.68);
+    const h = r * (0.55 + 0.3 * l.sail);
+    const sway = Math.sin(t * 1.4 + o.seed) * 0.12;
+    ctx.fillStyle = rgba(l.glow, 0.28 * alpha);
+    ctx.strokeStyle = rgba(l.membrane, 0.9 * alpha);
+    ctx.lineWidth = Math.max(0.6, r * 0.028);
+    ctx.beginPath();
+    ctx.moveTo(SX[a0], SY[a0]);
+    for (let i = a0; i <= a1; i++) {
+      const u = (i - a0) / Math.max(1, a1 - a0);
+      const hh = h * Math.sin(u * Math.PI) * (0.85 + 0.15 * Math.sin(i * 1.7));
+      ctx.lineTo(SX[i] + SNX[i] * hh * (0.55 + sway), SY[i] + SNY[i] * hh * (0.55 + sway) - hh * 0.05);
+    }
+    ctx.lineTo(SX[a1], SY[a1]);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // spines
+    ctx.strokeStyle = rgba('#fff4e0', 0.5 * alpha);
+    ctx.lineWidth = Math.max(0.5, r * 0.018);
+    ctx.beginPath();
+    for (let i = a0 + 1; i < a1; i++) {
+      const u = (i - a0) / Math.max(1, a1 - a0);
+      const hh = h * Math.sin(u * Math.PI) * (0.85 + 0.15 * Math.sin(i * 1.7));
+      ctx.moveTo(SX[i], SY[i]);
+      ctx.lineTo(SX[i] + SNX[i] * hh * (0.55 + sway), SY[i] + SNY[i] * hh * (0.55 + sway) - hh * 0.05);
+    }
+    ctx.stroke();
+  }
+  // brow horns
+  if (l.horns) {
+    const n = Math.min(3, l.horns);
+    const hx0 = L / 2 - r * 0.32;
+    ctx.fillStyle = rgba('#f4ead0', 0.95 * alpha);
+    ctx.strokeStyle = rgba(l.inner, 0.8 * alpha);
+    ctx.lineWidth = Math.max(0.5, r * 0.02);
+    for (const side of [-1, 1]) {
+      const by = side * SW[1] * 0.55;
+      const len = r * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(hx0 - r * 0.06, by - side * r * 0.06);
+      ctx.quadraticCurveTo(hx0 + len * 0.5, by + side * len * 0.55, hx0 + len, by + side * len * 0.15);
+      ctx.quadraticCurveTo(hx0 + len * 0.35, by + side * len * 0.2, hx0 + r * 0.06, by + side * r * 0.06);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    if (n >= 3) {
+      // nasal horn
+      ctx.beginPath();
+      ctx.moveTo(L / 2 - r * 0.02, -r * 0.07); ctx.lineTo(L / 2 + r * 0.32, 0); ctx.lineTo(L / 2 - r * 0.02, r * 0.07);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+  // serrated teeth: bigger, blade-like teeth that show past the lips
+  if (l.serrated) {
+    const mx = L / 2 - r * 0.05, mw = SW[1] * 0.85;
+    ctx.fillStyle = rgba('#fffaf0', 0.95 * alpha);
+    for (const side of [-1, 1]) {
+      for (let k = 0; k < 4; k++) {
+        const px = mx - k * r * 0.11, py = side * mw * (0.55 + k * 0.12);
+        ctx.beginPath(); ctx.moveTo(px - r * 0.04, py); ctx.lineTo(px + r * 0.04, py); ctx.lineTo(px + r * 0.01, py + side * r * 0.1); ctx.closePath(); ctx.fill();
       }
     }
   }

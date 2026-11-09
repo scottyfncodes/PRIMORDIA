@@ -64,6 +64,15 @@ export interface Look {
   ears?: boolean;
   tongue?: boolean;
   eggs?: boolean;
+  /** ── amniote body plan (Era VII) ── */
+  /** dorsal sail (0..2: size) */
+  sail?: number;
+  /** brow horns (count) */
+  horns?: number;
+  /** blade-edged teeth */
+  serrated?: boolean;
+  /** frill of skin around the neck */
+  frill?: boolean;
 }
 
 export const baseLook = (o: Partial<Look>): Look => ({

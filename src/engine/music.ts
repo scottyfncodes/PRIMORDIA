@@ -31,6 +31,8 @@ const SCORES: EraScore[] = [
   { root: 98, scale: [0, 1, 3, 5, 7, 8, 10], chords: [[0, 2, 4], [1, 3, 5], [5, 7, 9], [0, 2, 4]], bpm: 70, pad: 'sawtooth', lead: 'triangle', leadDecay: 1.1, density: 0.4, bass: 2, padVol: 0.03, leadVol: 0.05, bright: 1000 },
   // VI — Land: open major pentatonic under an open sky
   { root: 174.61, scale: [0, 2, 4, 7, 9], chords: [[0, 2, 4], [3, 5, 7], [1, 3, 5], [2, 4, 6]], bpm: 72, pad: 'triangle', lead: 'sine', leadDecay: 1.4, density: 0.45, bass: 1, padVol: 0.04, leadVol: 0.05, bright: 2200 },
+  // VII — Reptiles: a slow, warm lydian march under a vast sky
+  { root: 87.31, scale: [0, 2, 4, 6, 7, 9, 11], chords: [[0, 2, 4], [1, 3, 5], [4, 6, 8], [5, 7, 9]], bpm: 66, pad: 'sawtooth', lead: 'triangle', leadDecay: 1.6, density: 0.38, bass: 2, padVol: 0.03, leadVol: 0.05, bright: 1700 },
 ];
 
 export class Music {

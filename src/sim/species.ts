@@ -286,7 +286,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'shoal', name: 'Silver Shoal', latin: 'Argentiscis gregaria', category: 'prey',
     desc: 'Glinting little fish that move as one. Hard to pick out, easy to scatter.',
-    eras: [5, 6], size: [90, 140], speed: 1500, accel: 2100, diet: 'nutrients', sight: 9, aggression: 0, schooling: 0.9, fear: 0.95,
+    eras: [5, 6, 7], size: [90, 140], speed: 1500, accel: 2100, diet: 'nutrients', sight: 9, aggression: 0, schooling: 0.9, fear: 0.95,
     defenses: [], energy: 180, growth: 70, dna: 14, hp: 140, bite: 0,
     zones: { shallows: 1.4, drift: 1.5, thicket: 0.7, vents: 0.5, abyss: 0.4 }, weight: 1.6,
     look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#e8f6ff', inner: '#4a7a9a', glow: '#b8e6ff', elong: 0.7, segments: 8, fins: 2, tailFin: 0.9, forkTail: true, eyes: 1, scales: true }),
@@ -318,7 +318,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'shark', name: 'Early Shark', latin: 'Cladoselache primus', category: 'predator',
     desc: 'Sleek, tireless and lined with teeth. It circles before it strikes.',
-    eras: [5, 6], size: [380, 520], speed: 1600, accel: 1700, diet: 'prey', sight: 9, aggression: 1, schooling: 0, fear: 0, lunge: 1.8,
+    eras: [5, 6, 7], size: [380, 520], speed: 1600, accel: 1700, diet: 'prey', sight: 9, aggression: 1, schooling: 0, fear: 0, lunge: 1.8,
     defenses: [], energy: 700, growth: 230, dna: 70, hp: 1800, bite: 130,
     zones: { shallows: 0.6, drift: 1.3, thicket: 0.4, vents: 0.8, abyss: 1.1 }, weight: 0.35,
     look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#b8c8d8', inner: '#3a4a5a', glow: '#8ac8ff', elong: 1, segments: 10, fins: 2, tailFin: 1.4, forkTail: true, eyes: 1, jaw: 2, electro: true }),
@@ -343,7 +343,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'fern', name: 'Primeval Fern', latin: 'Archaeopteris prima', category: 'harmless',
     desc: 'One of the first true plants on land, unrolling fronds toward an open sky.',
-    eras: [6], size: [200, 320], speed: 6, accel: 8, diet: 'none', sight: 2, aggression: 0, schooling: 0, fear: 0, sessile: true,
+    eras: [6, 7], size: [200, 320], speed: 6, accel: 8, diet: 'none', sight: 2, aggression: 0, schooling: 0, fear: 0, sessile: true,
     defenses: [], energy: 420, growth: 160, dna: 12, hp: 300, bite: 0, habitat: 'land',
     zones: { land: 1.6 }, weight: 1.2,
     look: baseLook({ body: 'frond', membrane: '#c8f0a0', inner: '#2f6a2a', glow: '#9ae06a' }),
@@ -351,7 +351,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'scuttler', name: 'Scuttler', latin: 'Blattoides primus', category: 'prey',
     desc: 'Quick little arthropods that swarm over the moss and vanish into cracks.',
-    eras: [6], size: [140, 220], speed: 2300, accel: 3200, diet: 'nutrients', sight: 10, aggression: 0, schooling: 0.8, fear: 1,
+    eras: [6, 7], size: [140, 220], speed: 2300, accel: 3200, diet: 'nutrients', sight: 10, aggression: 0, schooling: 0.8, fear: 1,
     defenses: [], energy: 300, growth: 110, dna: 18, hp: 200, bite: 0, habitat: 'land',
     zones: { land: 1.6 }, weight: 1.3,
     look: baseLook({ body: 'swimmer', membrane: '#e0c890', inner: '#6a4a1a', glow: '#ffd27a', elong: 0.3, segments: 5, legs: 3, legLen: 0.7, receptors: 2, carapace: true }),
@@ -375,7 +375,7 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'mudskipper', name: 'Mud Hopper', latin: 'Periophthalmus avus', category: 'prey',
     desc: 'A little fish that props itself up on its fins and skips across the wet sand.',
-    eras: [6], size: [160, 240], speed: 1900, accel: 2600, diet: 'nutrients', sight: 9, aggression: 0, schooling: 0.6, fear: 0.95,
+    eras: [6, 7], size: [160, 240], speed: 1900, accel: 2600, diet: 'nutrients', sight: 9, aggression: 0, schooling: 0.6, fear: 0.95,
     defenses: [], energy: 320, growth: 120, dna: 18, hp: 260, bite: 0, habitat: 'both',
     zones: { land: 0.8, shallows: 0.9 }, weight: 1.1,
     look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#c8d8b0', inner: '#4a5a3a', glow: '#b8e08a', elong: 0.5, segments: 8, legs: 1, legLen: 0.5, tailFin: 0.6, eyes: 1, mottled: true }),
@@ -391,10 +391,67 @@ export const SPECIES: SpeciesDef[] = [
   S({
     id: 'skydarter', name: 'Sky Darter', latin: 'Meganeura aurea', category: 'rare',
     desc: 'A giant early insect on glittering wings. It answers to neither land nor sea.',
-    eras: [6], size: [220, 300], speed: 3000, accel: 3600, diet: 'none', sight: 13, aggression: 0, schooling: 0, fear: 1,
+    eras: [6, 7], size: [220, 300], speed: 3000, accel: 3600, diet: 'none', sight: 13, aggression: 0, schooling: 0, fear: 1,
     defenses: [], energy: 500, growth: 140, dna: 180, hp: 400, bite: 0, habitat: 'both',
     zones: { land: 0.9, shallows: 0.3 }, weight: 0.14,
     look: baseLook({ body: 'swimmer', membrane: '#c8f0ff', inner: '#2a5a8a', glow: '#8ae8ff', elong: 1.3, segments: 10, wings: true, eyes: 2, glowStrength: 1.6 }),
+  }),
+  // ───────────── ERA VII (reptiles) ─────────────
+  S({
+    id: 'cycad', name: 'Cycad Grove', latin: 'Cycadeoidea antiqua', category: 'harmless',
+    desc: 'Squat, palm-like trees with a crown of stiff fronds. Slow-growing, but rich in starch.',
+    eras: [7], size: [380, 560], speed: 6, accel: 8, diet: 'none', sight: 2, aggression: 0, schooling: 0, fear: 0, sessile: true,
+    defenses: [], energy: 900, growth: 300, dna: 16, hp: 600, bite: 0, habitat: 'land',
+    zones: { land: 1.6 }, weight: 1.1,
+    look: baseLook({ body: 'frond', membrane: '#d8e890', inner: '#4a5a1a', glow: '#c8e06a' }),
+  }),
+  S({
+    id: 'skink', name: 'Sand Skink', latin: 'Lacertulus velox', category: 'prey',
+    desc: 'Small, quick and everywhere: little lizards that dart from sunlit rock to shadow.',
+    eras: [7], size: [220, 340], speed: 3000, accel: 4200, diet: 'nutrients', sight: 10, aggression: 0, schooling: 0.7, fear: 1,
+    defenses: [], energy: 520, growth: 190, dna: 22, hp: 380, bite: 0, habitat: 'land',
+    zones: { land: 1.6 }, weight: 1.3,
+    look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#e8d8a0', inner: '#6a5a2a', glow: '#ffe08a', elong: 0.85, segments: 10, legs: 2, legLen: 0.6, eyes: 1, scales: true, mottled: true, tailFin: 0.2 }),
+  }),
+  S({
+    id: 'grazer', name: 'Tusked Grazer', latin: 'Dicynodon gregarius', category: 'competitor',
+    desc: 'Beaked, barrel-bodied herbivores with a pair of tusks. They graze in herds and do not like to be crowded.',
+    eras: [7], size: [560, 820], speed: 900, accel: 1100, diet: 'nutrients', sight: 7, aggression: 0.15, schooling: 0.75, fear: 0.4,
+    defenses: [], energy: 1500, growth: 520, dna: 40, hp: 4200, bite: 160, habitat: 'land',
+    zones: { land: 1.1 }, weight: 0.8,
+    look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#c8a888', inner: '#5a3a2a', glow: '#e8b080', elong: 0.35, segments: 9, legs: 2, legLen: 0.5, eyes: 1, horns: 2, mottled: true, tailFin: 0.15 }),
+  }),
+  S({
+    id: 'shieldback', name: 'Pareia Shieldback', latin: 'Pareiasaurus lentus', category: 'competitor',
+    desc: 'A plodding giant studded with bony knobs. It eats ferns and fears nothing — and nothing can bite through it.',
+    eras: [7], size: [700, 980], speed: 500, accel: 600, diet: 'nutrients', sight: 5, aggression: 0, schooling: 0, fear: 0.1,
+    defenses: ['shelled'], energy: 1900, growth: 640, dna: 50, hp: 7000, bite: 0, habitat: 'land',
+    zones: { land: 0.8 }, weight: 0.5,
+    look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#b8a078', inner: '#4a3a24', glow: '#d8b878', elong: 0.25, segments: 9, legs: 2, legLen: 0.45, eyes: 1, headArmor: true, scales: true, frill: true, tailFin: 0.1 }),
+  }),
+  S({
+    id: 'gorgon', name: 'Gorgon', latin: 'Inostrancevia terribilis', category: 'predator',
+    desc: 'A sabre-toothed hunter the size of a bear. It waits in the ferns and strikes with frightening speed.',
+    eras: [7], size: [1100, 1450], speed: 2600, accel: 2800, diet: 'prey', sight: 8, aggression: 1, schooling: 0, fear: 0, lunge: 1.8,
+    defenses: [], energy: 2600, growth: 800, dna: 150, hp: 9000, bite: 420, habitat: 'land',
+    zones: { land: 0.55 }, weight: 0.45,
+    look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#a87a6a', inner: '#2a1814', glow: '#ff6a4a', elong: 0.8, segments: 10, legs: 2, legLen: 0.85, eyes: 2, jaw: 2, serrated: true, mottled: true, tailFin: 0.3 }),
+  }),
+  S({
+    id: 'phytosaur', name: 'River Stalker', latin: 'Phytosaurus insidians', category: 'predator',
+    desc: 'All snout and patience. It lies like a log in the shallows and drags down anything that comes to drink.',
+    eras: [7], size: [900, 1250], speed: 1900, accel: 2100, diet: 'prey', sight: 7, aggression: 0.95, schooling: 0, fear: 0, lunge: 2,
+    defenses: [], energy: 2200, growth: 700, dna: 120, hp: 8000, bite: 360, habitat: 'both',
+    zones: { shallows: 1, land: 0.25, drift: 0.4 }, weight: 0.45,
+    look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#7a8a6a', inner: '#24301c', glow: '#b8e070', elong: 1.25, segments: 12, legs: 2, legLen: 0.45, eyes: 1, jaw: 2, scales: true, mottled: true, tailFin: 0.8 }),
+  }),
+  S({
+    id: 'glider', name: 'Gliding Lizard', latin: 'Coelurosauravus aureus', category: 'rare',
+    desc: 'A little lizard with wings of skin stretched over long ribs. It sails from tree to tree and is gone.',
+    eras: [7], size: [300, 400], speed: 3400, accel: 4000, diet: 'none', sight: 13, aggression: 0, schooling: 0, fear: 1,
+    defenses: [], energy: 800, growth: 220, dna: 220, hp: 600, bite: 0, habitat: 'both',
+    zones: { land: 1, shallows: 0.2 }, weight: 0.14,
+    look: baseLook({ body: 'swimmer', vertebrate: true, membrane: '#ffd8a0', inner: '#8a4a1a', glow: '#ffc06a', elong: 0.9, segments: 10, legs: 2, legLen: 0.5, wings: true, eyes: 1, scales: true, glowStrength: 1.6 }),
   }),
 ];
 

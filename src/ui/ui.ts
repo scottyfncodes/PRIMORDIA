@@ -11,6 +11,7 @@ import type { Audio } from '../engine/audio';
 import type { Input } from '../engine/input';
 import type { RunSnapshot } from '../game/save';
 import { icon } from './icons';
+import { buzz } from '../engine/haptics';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const h = (tag: string, cls = '', html = '') => {
@@ -26,7 +27,7 @@ const CATEGORY_LABEL: Record<string, string> = { harmless: 'Harmless', prey: 'Pr
 const ARCH_ORDER: Archetype[] = ['predator', 'defender', 'opportunist', 'phototroph'];
 const ARCH_SHORT: Record<Archetype, string> = { predator: 'Predator', defender: 'Defender', opportunist: 'Forager', phototroph: 'Phototroph' };
 /** micrometres per world unit at each era (bodies are measured in world units) */
-const UM_PER_UNIT = [0.25, 0.6, 3, 40, 400, 1500];
+const UM_PER_UNIT = [0.25, 0.6, 3, 40, 400, 1500, 2500];
 
 function fmtLength(um: number) {
   if (um < 1000) return `${um} µm`;
@@ -380,10 +381,12 @@ export class UI {
     el.innerHTML = `
       <div class="panel">
         <h2>Settings</h2>
-        <div class="setting"><div><b>Sound</b><small>Ambience and feedback</small></div><button class="toggle ${s.sound ? 'on' : ''}" id="st-sound"><i></i></button></div>
-        <div class="setting"><div><b>Music</b><small>A score that evolves with each era</small></div><button class="toggle ${s.music ? 'on' : ''}" id="st-music"><i></i></button></div>
+        <div class="setting"><div><b>Sound</b><small>Ambience and feedback</small></div><button class="toggle ${s.sound ? 'on' : ''}" id="st-sound" aria-label="Sound"><i></i></button></div>
+        <div class="setting"><div><b>Music</b><small>A score that evolves with each era</small></div><button class="toggle ${s.music ? 'on' : ''}" id="st-music" aria-label="Music"><i></i></button></div>
         <div class="setting"><div><b>Controls</b><small>Joystick: drag on the left side. Follow: touch anywhere and the cell swims toward your finger.</small></div>
           <div class="seg" id="st-ctrl"><button data-v="joystick" class="${s.controls === 'joystick' ? 'on' : ''}">Joystick</button><button data-v="drag" class="${s.controls === 'drag' ? 'on' : ''}">Follow</button></div></div>
+        <div class="setting"><div><b>Vibration</b><small>A short buzz when you are bitten, leap or die (on supported phones)</small></div><button class="toggle ${s.haptics ? 'on' : ''}" id="st-haptics" aria-label="Vibration"><i></i></button></div>
+        <div class="setting"><div><b>Gentle Tides</b><small>An easier sea: 40% less damage and 20% slower hunger. Discoveries count the same.</small></div><button class="toggle ${s.assist ? 'on' : ''}" id="st-assist" aria-label="Gentle Tides"><i></i></button></div>
         <div class="setting"><div><b>Keyboard</b><small>WASD / arrows to swim · Space to burst · Q E R F T G abilities · V evolve · Esc pause</small></div></div>
         <div class="setting danger"><div><b>Erase discoveries</b><small>Clears the Codex and records</small></div><button class="btn small ghost" id="st-reset">Erase</button></div>
         <button class="btn primary" id="st-back">Done</button>
@@ -392,6 +395,15 @@ export class UI {
     el.querySelector('#st-sound')!.addEventListener('click', (ev) => {
       s.sound = !s.sound; (ev.currentTarget as HTMLElement).classList.toggle('on', s.sound);
       this.audio.setEnabled(s.sound); this.game.progress.flush();
+    });
+    el.querySelector('#st-haptics')!.addEventListener('click', (ev) => {
+      s.haptics = !s.haptics; (ev.currentTarget as HTMLElement).classList.toggle('on', s.haptics);
+      if (s.haptics) buzz(25);
+      this.game.progress.flush();
+    });
+    el.querySelector('#st-assist')!.addEventListener('click', (ev) => {
+      s.assist = !s.assist; (ev.currentTarget as HTMLElement).classList.toggle('on', s.assist);
+      this.game.progress.flush();
     });
     el.querySelector('#st-music')!.addEventListener('click', (ev) => {
       s.music = !s.music; (ev.currentTarget as HTMLElement).classList.toggle('on', s.music);

@@ -7,6 +7,7 @@ import { UI } from './ui/ui';
 import { RunStore, snapshot } from './game/save';
 import { PLAYER_SPAWN } from './sim/environment';
 import { TRAIT_BY_ID } from './game/traits';
+import { buzz } from './engine/haptics';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game();
@@ -112,8 +113,16 @@ function handleEvents() {
   const fx = renderer.fx;
   const z = renderer.cam.zoom;
   const textSize = 15 / z;
+  const haptics = game.progress.data.settings.haptics;
   for (const e of game.events) {
     ui.handleEvent(e);
+    if (haptics) {
+      if (e.type === 'bite' && !e.blocked) buzz(35);
+      else if (e.type === 'leap') buzz([30, 60, 30, 60, 90]);
+      else if (e.type === 'death') buzz([80, 50, 160]);
+      else if (e.type === 'strikeHit' && e.kill) buzz(20);
+      else if (e.type === 'revive') buzz([40, 40, 40]);
+    }
     switch (e.type) {
       case 'eat':
         fx.burst(e.x, e.y, 10 + Math.min(20, Math.round(e.r)), e.color, e.r * 4, e.r * 0.35);

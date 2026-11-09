@@ -33,6 +33,9 @@ export const CLADES: Record<string, Clade> = {
   placodermi: { key: 'placodermi', name: 'Placodermi', path: ['Chordata', 'Placodermi'], blurb: 'Armour-headed fish, the first giants with jaws.' },
   actinopterygii: { key: 'actinopterygii', name: 'Actinopterygii', path: ['Chordata', 'Actinopterygii'], blurb: 'Ray-finned fish: light bones, quick fins, endless variety.' },
   sarcopterygii: { key: 'sarcopterygii', name: 'Sarcopterygii', path: ['Chordata', 'Sarcopterygii'], blurb: 'Lobe-finned fish whose fleshy fins would become legs.' },
+  reptilia: { key: 'reptilia', name: 'Sauropsida', path: ['Chordata', 'Sauropsida'], blurb: 'Scaly amniotes: lizards, crocodile kin and, one day, the dinosaurs.' },
+  synapsida: { key: 'synapsida', name: 'Synapsida', path: ['Chordata', 'Synapsida'], blurb: 'Amniotes with a single opening behind the eye: sail-backs, tuskers, gorgons — and the ancestors of mammals.' },
+  cycadophyta: { key: 'cycadophyta', name: 'Cycadophyta', path: ['Plantae', 'Cycadophyta'], blurb: 'Seed plants with crowns of stiff fronds, the gardens of the reptile age.' },
   plantae: { key: 'plantae', name: 'Progymnospermae', path: ['Plantae', 'Progymnospermae'], blurb: 'The first true trees, raising wood toward an open sky.' },
 };
 
@@ -59,6 +62,9 @@ const SPECIES_CLADE: Record<string, string> = {
   shoal: 'actinopterygii', mudskipper: 'actinopterygii',
   lobefish: 'sarcopterygii', rival: 'sarcopterygii',
   fern: 'plantae',
+  cycad: 'cycadophyta',
+  skink: 'reptilia', shieldback: 'reptilia', phytosaur: 'reptilia', glider: 'reptilia',
+  grazer: 'synapsida', gorgon: 'synapsida',
 };
 
 export function cladeOf(sp: SpeciesDef): Clade {
@@ -111,6 +117,10 @@ export function characteristics(sp: SpeciesDef): string[] {
   add(l.lobeFins, 'Lobed fins');
   add(l.legs, 'Walking legs');
   add(l.wings, 'Wings');
+  add(l.sail, 'Dorsal sail');
+  add(l.horns, 'Horns');
+  add(l.serrated, 'Serrated teeth');
+  add(l.frill, 'Neck frill');
   for (const d of sp.defenses) add(true, d === 'spiny' ? 'Spiny defence' : d === 'shelled' ? 'Hard shell' : 'Toxic to eat');
   return [...new Set(out)];
 }

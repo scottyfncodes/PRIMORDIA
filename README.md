@@ -2,7 +2,7 @@
 
 A mobile-first evolutionary survival arcade game. Begin as a single cell in a primordial sea — explore, eat, grow, mutate, evolve, survive.
 
-**Playable eras:** I Primordial Life → II Complex Cells → III Multicellular Life → IV Early Aquatic Life (animal body plans: eyes, fins, claws, carapace, ink) → V Vertebrate Life (jaws, scales, lobe fins, electroreception, sharks and armoured titans) → VI Land Transition (a coastline appears: breath, legs, lungs and a land ecosystem).
+**Playable eras:** I Primordial Life → II Complex Cells → III Multicellular Life → IV Early Aquatic Life (animal body plans: eyes, fins, claws, carapace, ink) → V Vertebrate Life (jaws, scales, lobe fins, electroreception, sharks and armoured titans) → VI Land Transition (a coastline appears: breath, legs, lungs and a land ecosystem) → VII Age of Reptiles (the land grows into a continent: sails, horns, serrated teeth, warm blood, gorgons, tusked grazers and river stalkers).
 
 ## Art direction
 *An entire universe inside a drop of water.* Eras I–III are rendered as if under a darkfield microscope: phase-contrast halos, translucent bilayer membranes, streaming cytoplasm, nuclei with ER and chromatin, food vacuoles digesting what you eat, binary fission, and lysis when cells die. The water itself is alive (`src/render/microcosm.ts`), with out-of-focus distant organisms, drifting molecules and debris, fluid flow, Brownian specks and chemical reactions, each region with its own character. Every mutation visibly morphs the body, and a micrograph scale bar tracks your size. The Codex is a field journal with specimen plates, taxonomy, behaviour, habitat, relationships and a Tree of Life of every form a lineage can take.
@@ -21,6 +21,7 @@ Everything else (organisms, environment, effects, audio) is procedural at runtim
 
 ## Play
 - **iPhone / touch:** drag on the left of the screen to swim (floating joystick). Buttons on the right: **Burst** plus any abilities you evolve. Tap the glowing **DNA helix** to evolve.
+- **Settings:** Vibration (short buzzes on bites, leaps and death) and **Gentle Tides**, an assist mode with 40% less damage and slower hunger.
 - **Desktop:** WASD / arrows to swim, Space to burst, Q/E/R/F/T/G for abilities, V to evolve, Esc to pause. You can also hold the mouse to swim toward the cursor.
 
 ## Develop
@@ -43,4 +44,4 @@ npm run build    # typecheck + production build to dist/
 
 Species taxonomy for the Codex lives in `src/game/codex.ts` (one clade entry per species; everything else is derived).
 
-Adding a mutation = one entry in `src/game/traits.ts` (stats + look + text). Adding a species = one entry in `src/sim/species.ts`. Eras IV–VI are declared in `src/game/eras.ts` for future expansion.
+Adding a mutation = one entry in `src/game/traits.ts` (stats + look + text). Adding a species = one entry in `src/sim/species.ts`. Eras are declared in `src/game/eras.ts`; adding one = an `ERAS` entry, four `FORMS`, its traits, species, a score in `src/engine/music.ts` and codex clades.

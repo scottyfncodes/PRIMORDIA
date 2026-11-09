@@ -58,6 +58,8 @@ export class Environment {
   scale = 1;
   /** Era VI: the sea has a shoreline and dry land to the north. */
   land = false;
+  /** Era VII: how far (base units) the land has pushed south into the sea. */
+  inland = 0;
   rocks: Rock[] = [];
   vents: Vent[] = [];
   strands: Strand[] = [];
@@ -126,10 +128,10 @@ export class Environment {
   /** Coastline y (world units) at world x: land lies north of it. */
   coastY(x: number): number {
     const bx = x / this.scale;
-    return (1450 + Math.sin(bx * 0.0011 + 0.6) * 320 + Math.sin(bx * 0.0031 + 2) * 130 + Math.sin(bx * 0.007) * 45) * this.scale;
+    return (1450 + this.inland + Math.sin(bx * 0.0011 + 0.6) * 320 + Math.sin(bx * 0.0031 + 2) * 130 + Math.sin(bx * 0.007) * 45) * this.scale;
   }
   /** Drift Isle: an island off the coast. Returns [x, y, radius] in world units. */
-  get island(): [number, number, number] { return [4500 * this.scale, 2600 * this.scale, 520 * this.scale]; }
+  get island(): [number, number, number] { return [4500 * this.scale, (2600 + this.inland * 0.9) * this.scale, (520 + this.inland * 0.45) * this.scale]; }
   islandRadius(angle: number): number {
     return this.island[2] * (1 + 0.12 * Math.sin(angle * 3 + 1) + 0.07 * Math.sin(angle * 7));
   }

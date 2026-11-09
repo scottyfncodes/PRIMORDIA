@@ -221,7 +221,7 @@ describe('era VI', () => {
     return g;
   };
   it('is playable, with tetrapod forms and a land ecosystem', () => {
-    expect(MAX_PLAYABLE_ERA).toBe(6);
+    expect(ERAS[5].playable).toBe(true);
     expect(SPECIES.filter((s) => s.eras.includes(6) && s.habitat === 'land').length).toBeGreaterThanOrEqual(4);
     for (const f of FORMS.filter((f) => f.era === 6)) expect(buildPlayerLook({}, 6, f).legs).toBe(2);
   });
@@ -274,6 +274,73 @@ describe('era VI', () => {
     g.damage(1e9, 'predator', SPECIES_BY_ID.shark);
     g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} });
     expect(g.state).toBe('dead');
+  });
+});
+
+describe('era VII', () => {
+  const toEra7 = (arch: 'predator' | 'defender' | 'opportunist' | 'phototroph' = 'opportunist') => {
+    const g = new Game();
+    g.newRun();
+    for (let e = 2; e <= 7; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, arch); g.confirmLeap(); }
+    return g;
+  };
+  it('is the last playable era, with amniote forms, new mutations and a reptile ecosystem', () => {
+    expect(MAX_PLAYABLE_ERA).toBe(7);
+    expect(ERAS[5].mutationsToLeap).toBeLessThan(30);
+    expect(SPECIES.filter((s) => s.eras.includes(7)).length).toBeGreaterThanOrEqual(8);
+    expect(SPECIES.filter((s) => s.eras[0] === 7 && s.category === 'predator').length).toBeGreaterThanOrEqual(1);
+    expect(TRAITS.filter((t) => t.era === 7).length).toBeGreaterThanOrEqual(6);
+    const forms = FORMS.filter((f) => f.era === 7);
+    expect(forms.length).toBe(4);
+    for (const f of forms) { const l = buildPlayerLook({}, 7, f); expect(l.legs).toBe(2); expect(l.scales).toBe(true); }
+    expect(buildPlayerLook({}, 7, formFor(7, 'phototroph')).sail).toBeGreaterThan(0);
+    expect(buildPlayerLook({}, 7, formFor(7, 'defender')).horns).toBeGreaterThan(0);
+  });
+  it('every form across all eras is reachable from the one before it', () => {
+    for (let e = 2; e <= MAX_PLAYABLE_ERA; e++) for (const a of ['predator', 'defender', 'opportunist', 'phototroph'] as const) expect(formFor(e, a).era).toBe(e);
+  });
+  it('the leap grows the land and the amniote body breathes and walks there', () => {
+    const g = toEra7();
+    const p = g.player;
+    expect(g.env.scale).toBe(24);
+    expect(g.env.inland).toBeGreaterThan(0);
+    expect(p.stats.landSpeed).toBeGreaterThanOrEqual(0.95);
+    const put = () => { p.x = g.env.w / 2; p.y = g.env.coastY(p.x) - p.r * 4; p.vx = p.vy = 0; };
+    for (let i = 0; i < 60 * 3; i++) { put(); g.update(1 / 60, { mx: 0, my: 0, burst: false, abilities: {} }); }
+    expect(p.onLand).toBe(true);
+    expect(p.breath).toBeGreaterThan(0.85);
+    g.newRun();
+    expect(g.env.inland).toBe(0);
+  });
+  it('era VII mutations change the body and the stats', () => {
+    const g = toEra7('predator');
+    const p = g.player;
+    const before = p.stats.strikeDamage;
+    p.addTrait('serrated');
+    expect(p.stats.strikeDamage).toBeGreaterThan(before);
+    expect(p.stats.abilities).toContain('strike');
+    p.addTrait('sail');
+    expect(p.look.sail).toBe(1);
+    p.addTrait('horns');
+    expect(p.look.horns).toBeGreaterThanOrEqual(2);
+    expect(p.stats.contactDamage).toBeGreaterThan(0);
+    expect(isEligible(TRAIT_BY_ID.warmblood, { bask: 1 }, 7)).toBe(false);
+    expect(isEligible(TRAIT_BY_ID.warmblood, {}, 6)).toBe(false);
+    expect(isEligible(TRAIT_BY_ID.warmblood, {}, 7)).toBe(true);
+  });
+  it('an era VI life can now leap into era VII', () => {
+    const g = new Game();
+    g.newRun();
+    for (let e = 2; e <= 6; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, 'defender'); g.confirmLeap(); }
+    const p = g.player;
+    while (p.mutationCount < p.era.mutationsToLeap) {
+      const offer = generateOffers(p.traits, p.eraIndex, 30).find((o) => o);
+      if (!offer) break;
+      p.addTrait(offer.trait.id);
+    }
+    p.growth = p.era.growthNeeded;
+    expect(p.mutationCount).toBeGreaterThanOrEqual(p.era.mutationsToLeap);
+    expect(g.leapAvailable).toBe(true);
   });
 });
 

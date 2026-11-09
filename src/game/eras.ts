@@ -26,7 +26,8 @@ export const ERAS: EraDef[] = [
   { index: 3, numeral: 'III', name: 'Multicellular Life', subtitle: 'Many cells, one body', playable: true, minR: 56, maxR: 104, growthNeeded: 3200, mutationsToLeap: 9, drain: 2.2, nutrientR: 10, nutrientEnergy: 5.5, dnaMoteChance: 0.035, populationTarget: 54, worldScale: 2 },
   { index: 4, numeral: 'IV', name: 'Early Aquatic Life', subtitle: 'Primitive swimmers, hunters and the first eyes', playable: true, minR: 112, maxR: 200, growthNeeded: 6000, mutationsToLeap: 13, drain: 2.8, nutrientR: 20, nutrientEnergy: 7, dnaMoteChance: 0.03, populationTarget: 46, worldScale: 4 },
   { index: 5, numeral: 'V', name: 'Vertebrate Life', subtitle: 'Backbones, fins and complex predators', playable: true, minR: 230, maxR: 400, growthNeeded: 11000, mutationsToLeap: 17, drain: 3.4, nutrientR: 40, nutrientEnergy: 9, dnaMoteChance: 0.025, populationTarget: 40, worldScale: 8 },
-  { index: 6, numeral: 'VI', name: 'Land Transition', subtitle: 'A new world above the water', playable: true, minR: 420, maxR: 700, growthNeeded: 18000, mutationsToLeap: 99, drain: 4.2, nutrientR: 70, nutrientEnergy: 12, dnaMoteChance: 0.02, populationTarget: 38, worldScale: 14 },
+  { index: 6, numeral: 'VI', name: 'Land Transition', subtitle: 'A new world above the water', playable: true, minR: 420, maxR: 700, growthNeeded: 18000, mutationsToLeap: 21, drain: 4.2, nutrientR: 70, nutrientEnergy: 12, dnaMoteChance: 0.02, populationTarget: 38, worldScale: 14 },
+  { index: 7, numeral: 'VII', name: 'Age of Reptiles', subtitle: 'Scales, eggs and the first giants of the land', playable: true, minR: 740, maxR: 1250, growthNeeded: 28000, mutationsToLeap: 99, drain: 5, nutrientR: 120, nutrientEnergy: 15, dnaMoteChance: 0.018, populationTarget: 36, worldScale: 24 },
 ];
 
 export const MAX_PLAYABLE_ERA = ERAS.filter((e) => e.playable).length;
@@ -84,7 +85,20 @@ export const FORMS: FormDef[] = [
   { id: 'e6-defender', era: 6, archetype: 'defender', name: 'Armoured Amphibian', desc: 'Low, heavy and plated with bony scutes. It walks where it likes.', shape: (l) => { fish(l, 0.45); tetrapod(l); l.headArmor = true; l.scales = true; l.legLen = 0.5; l.tailFin = (l.tailFin || 0) + 0.4; } },
   { id: 'e6-opportunist', era: 6, archetype: 'opportunist', name: 'Coastal Walker', desc: 'Long-legged and curious, at home on the wet sand between two worlds.', shape: (l) => { fish(l, 0.6); tetrapod(l); l.legLen = 0.8; l.jaw = Math.max(l.jaw || 0, 1); l.tailFin = (l.tailFin || 0) + 0.5; } },
   { id: 'e6-phototroph', era: 6, archetype: 'phototroph', name: 'Moss-Backed Basker', desc: 'Its back is a living carpet of moss and algae. It lies in the sun and simply grows.', shape: (l) => { fish(l, 0.5); tetrapod(l); l.fronds = Math.max(l.fronds || 0, 3) + 3; l.mottled = true; l.legLen = 0.55; l.tailFin = (l.tailFin || 0) + 0.5; } },
+
+  { id: 'e7-predator', era: 7, archetype: 'predator', name: 'Serrated Tyrant', desc: 'Upright legs, a deep skull and blade-edged teeth. The first true terror of the dry land.', shape: (l) => { fish(l, 0.85); tetrapod(l); amniote(l); l.jaw = 2; l.serrated = true; l.eyes = Math.max(l.eyes || 0, 2); l.legLen = 0.95; } },
+  { id: 'e7-defender', era: 7, archetype: 'defender', name: 'Horned Shieldback', desc: 'A walking fortress of bony scutes, crowned with a pair of brow horns.', shape: (l) => { fish(l, 0.45); tetrapod(l); amniote(l); l.headArmor = true; l.horns = Math.max(l.horns || 0, 2); l.legLen = 0.55; } },
+  { id: 'e7-opportunist', era: 7, archetype: 'opportunist', name: 'Swift Strider', desc: 'Light, long-legged and endlessly curious: it covers more ground than anything alive.', shape: (l) => { fish(l, 0.7); tetrapod(l); amniote(l); l.legLen = 1.05; l.jaw = Math.max(l.jaw || 0, 1); } },
+  { id: 'e7-phototroph', era: 7, archetype: 'phototroph', name: 'Sail-Backed Basker', desc: 'A great fan of skin along its spine drinks the morning sun, warming it before anything else is awake.', shape: (l) => { fish(l, 0.6); tetrapod(l); amniote(l); l.sail = Math.max(l.sail || 0, 1); l.mottled = true; l.legLen = 0.65; } },
 ];
+
+/** Era VII: the amniote body — dry scaly skin, lungs, a land animal through and through. */
+function amniote(l: Look) {
+  l.scales = true;
+  l.gills = false;
+  l.airSac = true;
+  l.tailFin = Math.min(l.tailFin || 0, 0.35);
+}
 
 /** Era VI: fins become weight-bearing limbs. */
 function tetrapod(l: Look) {

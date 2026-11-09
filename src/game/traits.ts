@@ -587,6 +587,93 @@ export const TRAITS: TraitDef[] = [
     apply: (s) => { s.bask = 9; s.darkPenalty *= 1.15; },
     look: (l) => { l.mottled = true; },
   }),
+  // ───────────── ERA VII ─────────────
+  T({
+    id: 'sail', name: 'Dorsal Sail', icon: '◭', category: 'Metabolism', era: 7,
+    bio: 'Long spines along the back grow a web of skin full of blood vessels: a solar panel that warms you at dawn.',
+    levels: [
+      { name: 'Dorsal Sail', cost: 380, pros: ['Bask in the sun 60% faster', 'Draw a little energy from light anywhere'], cons: ['Easier for hunters to spot (+15%)'] },
+      { name: 'Great Sail', cost: 460, pros: ['Bask in the sun twice as fast', '−10% metabolic drain'], cons: ['Easier for hunters to spot (+25%)'] },
+    ],
+    archetype: { phototroph: 3, defender: 0.5 },
+    apply: (s, lv) => { s.bask = Math.max(s.bask, 6) * (lv >= 2 ? 2 : 1.6); s.photo += 0.25; s.detectability *= lv >= 2 ? 1.25 : 1.15; if (lv >= 2) s.metabolism *= 0.9; },
+    look: (l, lv) => { l.sail = lv; },
+  }),
+  T({
+    id: 'horns', name: 'Brow Horns', icon: '⋏', category: 'Defense', era: 7,
+    bio: 'Bony cores sheathed in keratin sprout above the eyes. A charge with these behind it is not something to stand in front of.',
+    levels: [
+      { name: 'Brow Horns', cost: 360, pros: ['Ramming deals heavy damage', 'Hunters think twice (+35% deterrence)'], cons: ['−5% top speed'] },
+      { name: 'Great Horns', cost: 440, pros: ['Ramming deals even more damage', '−15% damage taken'], cons: ['−5% top speed'] },
+    ],
+    archetype: { defender: 2, predator: 0.5 },
+    apply: (s, lv) => { s.contactDamage = Math.max(s.contactDamage, lv >= 2 ? 70 : 50); s.predatorDeter = Math.min(0.9, s.predatorDeter + 0.35); s.speed *= 0.95; if (lv >= 2) s.damageTaken *= 0.85; },
+    look: (l, lv) => { l.horns = lv >= 2 ? 3 : 2; },
+  }),
+  T({
+    id: 'serrated', name: 'Serrated Teeth', icon: '⩘', category: 'Feeding', era: 7,
+    bio: 'Every tooth edged like a saw. Flesh that once slipped out of the jaws is now sliced clean.',
+    levels: [
+      { name: 'Serrated Teeth', cost: 400, pros: ['STRIKE ability (if you lack one)', 'Strikes deal +60% damage', 'Swallow slightly larger prey'], cons: ['+8% metabolism'] },
+    ],
+    archetype: { predator: 3 },
+    ability: 'strike',
+    apply: (s) => { if (!s.abilities.includes('strike')) s.abilities.push('strike'); s.strikeDamage *= 1.6; s.eatRatio += 0.05; s.metabolism *= 1.08; },
+    look: (l) => { l.jaw = 2; l.serrated = true; },
+  }),
+  T({
+    id: 'stride', name: 'Upright Stride', icon: '⇑', category: 'Locomotion', era: 7,
+    bio: 'Legs swing under the body instead of sprawling out to the side. Breathing and running at the same time becomes possible.',
+    levels: [
+      { name: 'Upright Stride', cost: 370, pros: ['+25% speed on land', 'Sharper turning'], cons: ['−10% speed in water'] },
+      { name: 'Runner\'s Legs', cost: 450, pros: ['+20% more speed on land', 'Burst 25% stronger'], cons: ['+6% metabolism'] },
+    ],
+    archetype: { opportunist: 2, predator: 1 },
+    apply: (s, lv) => { s.landSpeed = Math.max(s.landSpeed, 0.85) * (lv >= 2 ? 1.5 : 1.25); s.turn *= 1.25; s.speed *= 0.9; if (lv >= 2) { s.burstPower *= 1.25; s.metabolism *= 1.06; } },
+    look: (l, lv) => { l.legLen = (l.legLen || 0.6) + (lv >= 2 ? 0.3 : 0.15); },
+  }),
+  T({
+    id: 'scent', name: 'Scent Organ', icon: '⌇', category: 'Senses', era: 7,
+    bio: 'A pit in the roof of the mouth tastes the air. A flick of the tongue tells you who passed by, and how long ago.',
+    levels: [
+      { name: 'Scent Organ', cost: 350, pros: ['Sense hunters and food from very far away', 'Wider nutrient pull'], cons: ['+5% metabolism'] },
+    ],
+    archetype: { opportunist: 1.5, predator: 1 },
+    apply: (s) => { s.sense = Math.max(s.sense, 90); s.magnet += 0.6; s.reaction *= 1.25; s.metabolism *= 1.05; },
+    look: (l) => { l.tongue = true; },
+  }),
+  T({
+    id: 'frill', name: 'Neck Frill', icon: '❂', category: 'Defense', era: 7,
+    bio: 'A fan of skin around the neck that flares when threatened: suddenly you look twice your size.',
+    levels: [
+      { name: 'Neck Frill', cost: 340, pros: ['Hunters often break off the chase (+30% deterrence)', 'More time to react to strikes'], cons: ['+4% metabolism'] },
+    ],
+    archetype: { defender: 1.5, phototroph: 0.5 },
+    apply: (s) => { s.predatorDeter = Math.min(0.9, s.predatorDeter + 0.3); s.reaction *= 1.3; s.metabolism *= 1.04; },
+    look: (l) => { l.frill = true; },
+  }),
+  T({
+    id: 'warmblood', name: 'Warm Blood', icon: '✺', category: 'Metabolism', era: 7,
+    bio: 'A furnace inside: you make your own heat. The cold no longer slows you, but the fire has to be fed.',
+    levels: [
+      { name: 'Warm Blood', cost: 420, pros: ['+12% top speed everywhere', 'No penalty in darkness or cold', 'Heal faster'], cons: ['+15% metabolism'] },
+    ],
+    archetype: { predator: 1.5, opportunist: 1.5 },
+    excludes: ['bask'],
+    apply: (s) => { s.speed *= 1.12; s.darkPenalty = 1; s.regen *= 1.4; s.metabolism *= 1.15; },
+    look: (l) => { l.glowStrength = (l.glowStrength || 1) * 1.15; },
+  }),
+  T({
+    id: 'nesting', name: 'Nesting Grounds', icon: '⬯', category: 'Colonial', era: 7,
+    bio: 'Clutches buried in warm sand and guarded by the whole herd. More young survive than ever before.',
+    levels: [
+      { name: 'Nesting Grounds', cost: 380, pros: ['Heal 40% faster', '+10% integrity'], cons: ['+5% metabolism'] },
+      { name: 'Guarded Clutch', cost: 520, pros: ['One more hatchling carries your lineage on when you die'], cons: ['+5% metabolism'] },
+    ],
+    archetype: { defender: 1.5, phototroph: 1, opportunist: 0.5 },
+    apply: (s, lv) => { s.regen *= 1.4; s.maxHp *= 1.1; s.metabolism *= lv >= 2 ? 1.1 : 1.05; if (lv >= 2) s.extraLives += 1; },
+    look: (l) => { l.eggs = true; },
+  }),
 ];
 
 export const TRAIT_BY_ID: Record<string, TraitDef> = Object.fromEntries(TRAITS.map((t) => [t.id, t]));
@@ -603,6 +690,11 @@ export function deriveStats(traits: TraitLevels, eraIndex = 1): Stats {
   // era scaling of base capabilities
   s.maxEnergy *= 1 + (eraIndex - 1) * 0.35;
   s.maxHp *= 1 + (eraIndex - 1) * 0.5;
+  // Era VII: the amniote body is a land body: dry skin and lungs, legs under it
+  if (eraIndex >= 7) {
+    s.breathDrain *= 0.2;
+    s.landSpeed = Math.max(s.landSpeed, 0.95);
+  }
   // dark penalty only meaningful for phototrophs
   return s;
 }

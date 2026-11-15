@@ -27,7 +27,8 @@ export const ERAS: EraDef[] = [
   { index: 4, numeral: 'IV', name: 'Early Aquatic Life', subtitle: 'Primitive swimmers, hunters and the first eyes', playable: true, minR: 112, maxR: 200, growthNeeded: 6000, mutationsToLeap: 13, drain: 2.8, nutrientR: 20, nutrientEnergy: 7, dnaMoteChance: 0.03, populationTarget: 46, worldScale: 4 },
   { index: 5, numeral: 'V', name: 'Vertebrate Life', subtitle: 'Backbones, fins and complex predators', playable: true, minR: 230, maxR: 400, growthNeeded: 11000, mutationsToLeap: 17, drain: 3.4, nutrientR: 40, nutrientEnergy: 9, dnaMoteChance: 0.025, populationTarget: 40, worldScale: 8 },
   { index: 6, numeral: 'VI', name: 'Land Transition', subtitle: 'A new world above the water', playable: true, minR: 420, maxR: 700, growthNeeded: 18000, mutationsToLeap: 21, drain: 4.2, nutrientR: 70, nutrientEnergy: 12, dnaMoteChance: 0.02, populationTarget: 38, worldScale: 14 },
-  { index: 7, numeral: 'VII', name: 'Age of Reptiles', subtitle: 'Scales, eggs and the first giants of the land', playable: true, minR: 740, maxR: 1250, growthNeeded: 28000, mutationsToLeap: 99, drain: 5, nutrientR: 120, nutrientEnergy: 15, dnaMoteChance: 0.018, populationTarget: 36, worldScale: 24 },
+  { index: 7, numeral: 'VII', name: 'Age of Reptiles', subtitle: 'Scales, eggs and the first giants of the land', playable: true, minR: 740, maxR: 1250, growthNeeded: 28000, mutationsToLeap: 25, drain: 5, nutrientR: 120, nutrientEnergy: 15, dnaMoteChance: 0.018, populationTarget: 36, worldScale: 24 },
+  { index: 8, numeral: 'VIII', name: 'Age of Dinosaurs', subtitle: 'Feathers, thunder and the largest animals ever to walk', playable: true, minR: 1320, maxR: 2200, growthNeeded: 50000, mutationsToLeap: 99, drain: 5.8, nutrientR: 200, nutrientEnergy: 18, dnaMoteChance: 0.016, populationTarget: 34, worldScale: 40 },
 ];
 
 export const MAX_PLAYABLE_ERA = ERAS.filter((e) => e.playable).length;
@@ -86,10 +87,15 @@ export const FORMS: FormDef[] = [
   { id: 'e6-opportunist', era: 6, archetype: 'opportunist', name: 'Coastal Walker', desc: 'Long-legged and curious, at home on the wet sand between two worlds.', shape: (l) => { fish(l, 0.6); tetrapod(l); l.legLen = 0.8; l.jaw = Math.max(l.jaw || 0, 1); l.tailFin = (l.tailFin || 0) + 0.5; } },
   { id: 'e6-phototroph', era: 6, archetype: 'phototroph', name: 'Moss-Backed Basker', desc: 'Its back is a living carpet of moss and algae. It lies in the sun and simply grows.', shape: (l) => { fish(l, 0.5); tetrapod(l); l.fronds = Math.max(l.fronds || 0, 3) + 3; l.mottled = true; l.legLen = 0.55; l.tailFin = (l.tailFin || 0) + 0.5; } },
 
-  { id: 'e7-predator', era: 7, archetype: 'predator', name: 'Serrated Tyrant', desc: 'Upright legs, a deep skull and blade-edged teeth. The first true terror of the dry land.', shape: (l) => { fish(l, 0.85); tetrapod(l); amniote(l); l.jaw = 2; l.serrated = true; l.eyes = Math.max(l.eyes || 0, 2); l.legLen = 0.95; } },
-  { id: 'e7-defender', era: 7, archetype: 'defender', name: 'Horned Shieldback', desc: 'A walking fortress of bony scutes, crowned with a pair of brow horns.', shape: (l) => { fish(l, 0.45); tetrapod(l); amniote(l); l.headArmor = true; l.horns = Math.max(l.horns || 0, 2); l.legLen = 0.55; } },
+  { id: 'e7-predator', era: 7, archetype: 'predator', name: 'Serrated Tyrant', desc: 'Upright legs, a deep skull and blade-edged teeth. The first true terror of the dry land.', shape: (l) => { fish(l, 0.85); tetrapod(l); amniote(l); l.jaw = 2; l.serrated = true; l.eyes = Math.max(l.eyes || 0, 2); l.legLen = 0.95; l.head = 0.7; } },
+  { id: 'e7-defender', era: 7, archetype: 'defender', name: 'Horned Shieldback', desc: 'A walking fortress of bony scutes, crowned with a pair of brow horns.', shape: (l) => { fish(l, 0.45); tetrapod(l); amniote(l); l.headArmor = true; l.horns = Math.max(l.horns || 0, 2); l.legLen = 0.55; l.head = 0.6; } },
   { id: 'e7-opportunist', era: 7, archetype: 'opportunist', name: 'Swift Strider', desc: 'Light, long-legged and endlessly curious: it covers more ground than anything alive.', shape: (l) => { fish(l, 0.7); tetrapod(l); amniote(l); l.legLen = 1.05; l.jaw = Math.max(l.jaw || 0, 1); } },
   { id: 'e7-phototroph', era: 7, archetype: 'phototroph', name: 'Sail-Backed Basker', desc: 'A great fan of skin along its spine drinks the morning sun, warming it before anything else is awake.', shape: (l) => { fish(l, 0.6); tetrapod(l); amniote(l); l.sail = Math.max(l.sail || 0, 1); l.mottled = true; l.legLen = 0.65; } },
+
+  { id: 'e8-predator', era: 8, archetype: 'predator', name: 'Tyrant Theropod', desc: 'Two pillars for legs, a skull like a vault door and arms it barely needs. Everything else on the plain is food.', shape: (l) => { fish(l, 0.9); tetrapod(l); amniote(l); l.biped = true; l.jaw = 2; l.serrated = true; l.eyes = Math.max(l.eyes || 0, 2); l.legLen = 1; l.head = 0.78; } },
+  { id: 'e8-defender', era: 8, archetype: 'defender', name: 'Club-Tailed Fortress', desc: 'Bone grown into the skin from snout to tail, and a tail that ends in a hammer.', shape: (l) => { fish(l, 0.4); tetrapod(l); amniote(l); l.erect = true; l.osteoderms = true; l.tailClub = true; l.headArmor = true; l.legLen = 0.5; l.head = 0.56; } },
+  { id: 'e8-opportunist', era: 8, archetype: 'opportunist', name: 'Feathered Runner', desc: 'Light bones, long legs and a coat of down. Quick enough to steal from a tyrant and be gone.', shape: (l) => { fish(l, 0.75); tetrapod(l); amniote(l); l.biped = true; l.feathers = Math.max(l.feathers || 0, 1); l.legLen = 1.1; l.jaw = Math.max(l.jaw || 0, 1); l.head = 0.5; l.neck = 0.3; } },
+  { id: 'e8-phototroph', era: 8, archetype: 'phototroph', name: 'Plate-Backed Basker', desc: 'Two rows of great bony plates along the spine, flushed with blood: they drink the morning sun and warn off the afternoon.', shape: (l) => { fish(l, 0.55); tetrapod(l); amniote(l); l.erect = true; l.backPlates = Math.max(l.backPlates || 0, 1); l.tailSpikes = true; l.mottled = true; l.legLen = 0.6; l.head = 0.36; l.neck = 0.28; } },
 ];
 
 /** Era VII: the amniote body — dry scaly skin, lungs, a land animal through and through. */
@@ -98,6 +104,9 @@ function amniote(l: Look) {
   l.gills = false;
   l.airSac = true;
   l.tailFin = Math.min(l.tailFin || 0, 0.35);
+  // a true neck: the head turns without the body
+  l.neck = 0.2;
+  l.head = 0.5;
 }
 
 /** Era VI: fins become weight-bearing limbs. */

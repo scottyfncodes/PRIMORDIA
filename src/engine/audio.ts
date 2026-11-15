@@ -283,6 +283,7 @@ export class Audio {
     if (id === 'strike') { this.noise(0.25, 1400, 0.2, 1.5, 'bandpass', 0.4); this.tone(260, 0.6, 0.2, 0.1, 'triangle', 0.002); }
     if (id === 'tongue') { this.tone(520, 0.35, 0.18, 0.12, 'triangle', 0.002); this.noise(0.12, 2000, 0.08, 3); }
     if (id === 'ink') { this.noise(1.4, 300, 0.22, 0.6, 'lowpass', 0.3); this.tone(90, 0.7, 1.2, 0.08, 'sine', 0.05); }
+    if (id === 'roar') { this.tone(74, 0.62, 1.3, 0.2, 'sawtooth', 0.04); this.tone(111, 0.7, 1.1, 0.09, 'sawtooth', 0.06); this.tone(37, 0.8, 1.5, 0.16, 'sine', 0.05); this.noise(1.2, 240, 0.22, 0.8, 'lowpass', 0.25); }
     if (id === 'toxin') { this.noise(1.2, 700, 0.2, 0.7, 'bandpass', 0.3); this.tone(140, 0.7, 0.9, 0.08, 'sawtooth', 0.05); }
   }
   /** A new species catalogued: a glassy specimen bell with an inharmonic shimmer. */

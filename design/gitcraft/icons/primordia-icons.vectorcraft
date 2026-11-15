@@ -1,9 +1,17 @@
 {
   "format": "vectorcraft",
   "version": 4,
-  "generator": "VectorCraft 0.20.0",
+  "generator": "VectorCraft 0.21.0",
+  "pdfCompatible": true,
+  "pdf": {
+    "mime": "application/pdf",
+    "blob": [
+      0,
+      9013
+    ]
+  },
   "document": {
-    "version": 1,
+    "version": 3,
     "title": "primordia-icons",
     "units": "Pixels",
     "rulers": "artboard",
@@ -155,11 +163,23 @@
       },
       {
         "id": 13,
-        "name": "growth",
+        "name": "roar",
         "rect": {
           "x0": 480.0,
           "y0": 0.0,
           "x1": 504.0,
+          "y1": 24.0
+        },
+        "show_center_mark": false,
+        "show_cross_hairs": false
+      },
+      {
+        "id": 14,
+        "name": "growth",
+        "rect": {
+          "x0": 520.0,
+          "y0": 0.0,
+          "x1": 544.0,
           "y1": 24.0
         },
         "show_center_mark": false,
@@ -3155,6 +3175,318 @@
             },
             {
               "id": 36,
+              "name": "roar",
+              "appearance": {
+                "items": [
+                  {
+                    "kind": "fill",
+                    "paint": {
+                      "type": "none"
+                    }
+                  },
+                  {
+                    "kind": "stroke",
+                    "paint": {
+                      "type": "solid",
+                      "color": {
+                        "model": "rgb",
+                        "r": 0.9098039,
+                        "g": 1.0,
+                        "b": 0.98039216
+                      }
+                    },
+                    "width": 1.7,
+                    "cap": "Round",
+                    "join": "Round"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "path",
+                "path": {
+                  "subpaths": [
+                    {
+                      "anchors": [
+                        {
+                          "p": [
+                            483.4,
+                            6.8
+                          ]
+                        },
+                        {
+                          "p": [
+                            490.4,
+                            12.0
+                          ]
+                        },
+                        {
+                          "p": [
+                            483.4,
+                            17.2
+                          ]
+                        }
+                      ],
+                      "closed": false
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": 37,
+              "name": "roar",
+              "appearance": {
+                "items": [
+                  {
+                    "kind": "fill",
+                    "paint": {
+                      "type": "none"
+                    }
+                  },
+                  {
+                    "kind": "stroke",
+                    "paint": {
+                      "type": "solid",
+                      "color": {
+                        "model": "rgb",
+                        "r": 0.9098039,
+                        "g": 1.0,
+                        "b": 0.98039216
+                      }
+                    },
+                    "width": 1.7,
+                    "cap": "Round",
+                    "join": "Round"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "path",
+                "path": {
+                  "subpaths": [
+                    {
+                      "anchors": [
+                        {
+                          "p": [
+                            486.2,
+                            9.9
+                          ]
+                        },
+                        {
+                          "p": [
+                            487.7,
+                            11.0
+                          ]
+                        }
+                      ],
+                      "closed": false
+                    },
+                    {
+                      "anchors": [
+                        {
+                          "p": [
+                            486.2,
+                            14.1
+                          ]
+                        },
+                        {
+                          "p": [
+                            487.7,
+                            13.0
+                          ]
+                        }
+                      ],
+                      "closed": false
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": 38,
+              "name": "roar",
+              "appearance": {
+                "items": [
+                  {
+                    "kind": "fill",
+                    "paint": {
+                      "type": "none"
+                    }
+                  },
+                  {
+                    "kind": "stroke",
+                    "paint": {
+                      "type": "solid",
+                      "color": {
+                        "model": "rgb",
+                        "r": 0.9098039,
+                        "g": 1.0,
+                        "b": 0.98039216
+                      }
+                    },
+                    "width": 1.7,
+                    "cap": "Round",
+                    "join": "Round"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "path",
+                "path": {
+                  "subpaths": [
+                    {
+                      "anchors": [
+                        {
+                          "p": [
+                            493.4,
+                            8.8
+                          ],
+                          "out": [
+                            495.12727689550445,
+                            10.583706129379017
+                          ]
+                        },
+                        {
+                          "p": [
+                            493.4,
+                            15.2
+                          ],
+                          "in": [
+                            495.12727689550445,
+                            13.416293870620983
+                          ]
+                        }
+                      ],
+                      "closed": false
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": 39,
+              "name": "roar",
+              "appearance": {
+                "items": [
+                  {
+                    "kind": "fill",
+                    "paint": {
+                      "type": "none"
+                    }
+                  },
+                  {
+                    "kind": "stroke",
+                    "paint": {
+                      "type": "solid",
+                      "color": {
+                        "model": "rgb",
+                        "r": 0.9098039,
+                        "g": 1.0,
+                        "b": 0.98039216
+                      }
+                    },
+                    "width": 1.7,
+                    "cap": "Round",
+                    "join": "Round"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "path",
+                "path": {
+                  "subpaths": [
+                    {
+                      "anchors": [
+                        {
+                          "p": [
+                            496.4,
+                            6.2
+                          ],
+                          "out": [
+                            499.55043860864134,
+                            9.424947048553415
+                          ]
+                        },
+                        {
+                          "p": [
+                            496.4,
+                            17.8
+                          ],
+                          "in": [
+                            499.55043860864134,
+                            14.575052951446585
+                          ]
+                        }
+                      ],
+                      "closed": false
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": 40,
+              "name": "roar",
+              "appearance": {
+                "items": [
+                  {
+                    "kind": "fill",
+                    "paint": {
+                      "type": "none"
+                    }
+                  },
+                  {
+                    "kind": "stroke",
+                    "paint": {
+                      "type": "solid",
+                      "color": {
+                        "model": "rgb",
+                        "r": 0.9098039,
+                        "g": 1.0,
+                        "b": 0.98039216
+                      }
+                    },
+                    "width": 1.7,
+                    "cap": "Round",
+                    "join": "Round"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "path",
+                "path": {
+                  "subpaths": [
+                    {
+                      "anchors": [
+                        {
+                          "p": [
+                            499.4,
+                            3.8
+                          ],
+                          "out": [
+                            503.81962483434853,
+                            8.373385400978071
+                          ]
+                        },
+                        {
+                          "p": [
+                            499.4,
+                            20.2
+                          ],
+                          "in": [
+                            503.81962483434853,
+                            15.62661459902193
+                          ]
+                        }
+                      ],
+                      "closed": false
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": 41,
               "name": "growth",
               "appearance": {
                 "items": [
@@ -3189,60 +3521,60 @@
                       "anchors": [
                         {
                           "p": [
-                            488.6,
+                            528.6,
                             7.0
                           ],
                           "in": [
-                            491.36142374915397,
+                            531.361423749154,
                             7.0
                           ],
                           "out": [
-                            485.8385762508461,
+                            525.838576250846,
                             7.0
                           ],
                           "kind": "Smooth"
                         },
                         {
                           "p": [
-                            483.6,
+                            523.6,
                             12.0
                           ],
                           "in": [
-                            483.6,
+                            523.6,
                             9.238576250846034
                           ],
                           "out": [
-                            483.6,
+                            523.6,
                             14.761423749153966
                           ],
                           "kind": "Smooth"
                         },
                         {
                           "p": [
-                            488.6,
+                            528.6,
                             17.0
                           ],
                           "in": [
-                            485.8385762508461,
+                            525.838576250846,
                             17.0
                           ],
                           "out": [
-                            491.36142374915397,
+                            531.361423749154,
                             17.0
                           ],
                           "kind": "Smooth"
                         },
                         {
                           "p": [
-                            493.6,
+                            533.6,
                             12.0
                           ],
                           "in": [
-                            493.6,
+                            533.6,
                             14.761423749153966
                           ],
                           "out": [
-                            493.6,
+                            533.6,
                             9.238576250846034
                           ],
                           "kind": "Smooth"
@@ -3255,7 +3587,7 @@
               }
             },
             {
-              "id": 37,
+              "id": 42,
               "name": "growth",
               "appearance": {
                 "items": [
@@ -3290,60 +3622,60 @@
                       "anchors": [
                         {
                           "p": [
-                            495.4,
+                            535.4,
                             7.0
                           ],
                           "in": [
-                            498.1614237491539,
+                            538.161423749154,
                             7.0
                           ],
                           "out": [
-                            492.63857625084603,
+                            532.638576250846,
                             7.0
                           ],
                           "kind": "Smooth"
                         },
                         {
                           "p": [
-                            490.4,
+                            530.4,
                             12.0
                           ],
                           "in": [
-                            490.4,
+                            530.4,
                             9.238576250846034
                           ],
                           "out": [
-                            490.4,
+                            530.4,
                             14.761423749153966
                           ],
                           "kind": "Smooth"
                         },
                         {
                           "p": [
-                            495.4,
+                            535.4,
                             17.0
                           ],
                           "in": [
-                            492.63857625084603,
+                            532.638576250846,
                             17.0
                           ],
                           "out": [
-                            498.1614237491539,
+                            538.161423749154,
                             17.0
                           ],
                           "kind": "Smooth"
                         },
                         {
                           "p": [
-                            500.4,
+                            540.4,
                             12.0
                           ],
                           "in": [
-                            500.4,
+                            540.4,
                             14.761423749153966
                           ],
                           "out": [
-                            500.4,
+                            540.4,
                             9.238576250846034
                           ],
                           "kind": "Smooth"
@@ -4291,7 +4623,7 @@
     },
     "raster_effects_ppi": 72.0,
     "images": {},
-    "next_id": 38,
+    "next_id": 43,
     "metadata": {
       "author": "",
       "authorTitle": "",
@@ -4301,9 +4633,256 @@
       "copyrightStatus": "unknown",
       "copyrightNotice": "",
       "copyrightUrl": "",
-      "created": 1793678625,
-      "modified": 1793678625
+      "created": 1794725259,
+      "modified": 1794725259
     }
   },
   "images": {}
 }
+ VCBLOBS %PDF-1.7
+%ÄÄÄÄ
+
+1 0 obj
+<</Type/Pages/Count 14/Kids[16 0 R 17 0 R 18 0 R 19 0 R 20 0 R 21 0 R 22 0 R 23 0 R 24 0 R 25 0 R 26 0 R 27 0 R 28 0 R 29 0 R]>>
+endobj
+2 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+3 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+4 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+5 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+6 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+7 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+8 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+9 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+10 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+11 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+12 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+13 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+14 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+15 0 obj
+<</ProcSet[/PDF/Text/ImageC/ImageB]>>
+endobj
+16 0 obj
+<</Type/Page/Resources 2 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 30 0 R>>
+endobj
+17 0 obj
+<</Type/Page/Resources 3 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 31 0 R>>
+endobj
+18 0 obj
+<</Type/Page/Resources 4 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 32 0 R>>
+endobj
+19 0 obj
+<</Type/Page/Resources 5 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 33 0 R>>
+endobj
+20 0 obj
+<</Type/Page/Resources 6 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 34 0 R>>
+endobj
+21 0 obj
+<</Type/Page/Resources 7 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 35 0 R>>
+endobj
+22 0 obj
+<</Type/Page/Resources 8 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 36 0 R>>
+endobj
+23 0 obj
+<</Type/Page/Resources 9 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 37 0 R>>
+endobj
+24 0 obj
+<</Type/Page/Resources 10 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 38 0 R>>
+endobj
+25 0 obj
+<</Type/Page/Resources 11 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 39 0 R>>
+endobj
+26 0 obj
+<</Type/Page/Resources 12 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 40 0 R>>
+endobj
+27 0 obj
+<</Type/Page/Resources 13 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 41 0 R>>
+endobj
+28 0 obj
+<</Type/Page/Resources 14 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 42 0 R>>
+endobj
+29 0 obj
+<</Type/Page/Resources 15 0 R/MediaBox[0 0 24 24]/BleedBox[0 0 24 24]/TrimBox[0 0 24 24]/Parent 1 0 R/Contents 43 0 R>>
+endobj
+30 0 obj
+<</Length 148/Filter/FlateDecode>>
+stream
+xú•O11€˚
+Ä(I{iÚ$6‡	]∫ò¯>J;ì≈âÌ∆!A∆¶‡pÆë+öL≈p9B®„	¡	Ç;DQ±A2tRàCò⁄ƒJc2£.µs§Æ&sH§Jwp27ç˜l?'ˆyd˚gß∂;•Û(∑r-ÁÚ¯ßÇ4[Ã‰9Øi∫|πêd"«ön/‡˘:·
+endstream
+endobj
+31 0 obj
+<</Length 210/Filter/FlateDecode>>
+stream
+xú≠Q1√0‹Ûä˚@ÿâ_P©[€'x©™dË‘ÔW`ãto‡∞Ô‡ƒ„$8F*h;ò*◊ïsµGÚ*â‚vÜ–Ç7ûò2)vîÖ≤Ú*ãÖﬁ‡µ#Ih£R“\•ÊÉìòäIynò«èé’¬AÍ–‘ºä)A≤c≠6=¶˚tù^?Z\(ô≈JπTŒŸq±G›£WÖtÊ™ÀIîVÛ‹0«ó˛`·†uhz^Ö»¡≤1cµŸÏó¢[ÏÍ-?≈∑ÙÉª„-v›„6õ≠Û„^t˜
+endstream
+endobj
+32 0 obj
+<</Length 223/Filter/FlateDecode>>
+stream
+xú≠Q1n1Ï˜ÛÅÅ6º R∫$Oÿ&ä¥≈U˘~ƒ:⁄ª>©ò1√ ÊÖ@pS‹B–˚aJÜÙ¨$O‘t‡˝ âo(^°¯B
+Éé1ò*∫hív“0h«~∆Aè◊áXìæ\N¥#çRöﬂÃ|**RN9/ÛK]MØaˆÌs˚ÿﬁ∂˚üVt»¡1Õ’—ëŒ£üã9≠&*88õ[t{™ôå2™∞#ìΩÎYEhOEã/øÖùÆ¬æ∆˙óc≤A≠é7iíM°¬»Ó“AœÓHŒ ¥˙^≈y§Í˝˝–n∆
+endstream
+endobj
+33 0 obj
+<</Length 201/Filter/FlateDecode>>
+stream
+xú≠ê=ND1Ñ˚wäπ¿Z«˘Ò	êËÄ#§Aà-∂‚˙(Œ[¥=€ŸôÒ¯sn äq°)Ã1ØP	ç°%ñ*Yﬁ_@È¯Ò
+‚,W∞∏Ù–—0¿Rªc64Ã]∏òWÍüü-Cÿ“i|u>¨.súèÈ˜Åq¢Ã„Û¯8ﬁé€ˇŒ2ìä_ßôc»⁄^•Ç*¥û‚mH›r—S,<gÁ”HË“NY?ö,U"YRæ√l√¢I9i∂·)8æ‚,abóﬂ+˜·àpÌ
+endstream
+endobj
+34 0 obj
+<</Length 250/Filter/FlateDecode>>
+stream
+xú≠ë;nƒ0D{üb.∞G~N ]í#∏	l±UÆH^{ùﬁç09z#ÒB°∏7ö¢4¨w®§fhÕQï©
+üo†8~AºÉ¯›≈`RpΩIM/(íô‘“@K)j¨®¢™¨4–LT€ti)ôXA+Z’ë“¥5Û”õÙÏΩ÷óï.ûÓ”πälXúÇpP#„ôì.Åu˘Z>ñ«ÖœÓíp·‰:B˙TT·Ö∏ô~Á—∆2ÅÏ/bïºàÿQè¡öˆàÌÄ^%¿Ò∑=¬˜}”xJ…ld=;gaªu»—k“≥q¶ﬁ&‘˛Y∑˝ÏúÚ<ú[û#Î∫|è«ˇâGç
+endstream
+endobj
+35 0 obj
+<</Length 156/Filter/FlateDecode>>
+stream
+xú≠ê±¬0D˜|≈˝@O∂“‰ê∫ü¿ÇP;t‚˜Q‹&Ç∂;'>?›Ö@0(ÅE‹Wãî,c©Øteöp=C9·≈≈¶ÜëÜ¶Ö	ñCkbtc0aÆR"cüªi{Ã·.a˚jbr®3 ~‹µ∆z∆øtéLÎs7maè˘TkÍ»˝Ï©±véﬁ‘˙EXIﬁ;V
+endstream
+endobj
+36 0 obj
+<</Length 292/Filter/FlateDecode>>
+stream
+xú≠í;nƒ0D{üÇXÇ§¯O`ª$Gpÿb´\?†Âè∂N
+AJú'ç˝Ç√Mî@÷&eßñµã€Jÿ·„~Ä·ﬂ &¿#Ïi⁄JäÆy(Åu,2©yŒ:|t;3ƒ®ÍKÉ>˙bv–qüu˘Z>ó˜Â˘∑«i†Bçà:rtÔ–—9%D5•l%T$Ê⁄v”K6±à69±aÎ‰;â}{^Õ;÷ªpì	kç¬€åΩj#†S^ÿ”i¬n§Å˝óºjT^Ç.,Õî®Œu+SHNÍ·Q⁄„:•btJÆh#TµÃJπ ú8˛òöw™3∂Ë!’•>Å˙D=KÉz…ãzM‘4®ï÷/øp°
+endstream
+endobj
+37 0 obj
+<</Length 220/Filter/FlateDecode>>
+stream
+xú≠P;nC1€ﬂ)xÅüdK'(ê≠ÌﬁRÕê©◊/¸yA3∑IëÂ;≈ÖQ@√qCë,eœ>ïÅ®o/Pi¯Ü‚
+≈'òD≈LìÜÇY≈°›∂†	qú§JgtüâÖÔ–VNpÄë‚jm¢=«&_oN2vE æ
+ÙJ«ˆ±ΩoØ€˝œÁQ8$˙“/0\*\¨´—P%∫ö!v™π‘i†–}U(b÷ß¿,TkMÎdÁOÿúˇùÚë“	∫O≈ªÈú)6ÿÙççèEè‘l±˙≠ˇÕ"sc
+endstream
+endobj
+38 0 obj
+<</Length 146/Filter/FlateDecode>>
+stream
+xú≠èªB1ÛW≈4¿ ÁıÛß$2†Ñó!àhÑ( ≤[≠¥3w'H$v¡Œ9ë€ç§ëFO≥’Î Q9Ì	5ÇŒ´VbhÂˆ	Y∆y®”ÿ]¶h∞aØj4uÏ¢L$Ul´Ve[ŒÀqπˇh4Tà¢:çÔ0âVS`¬M4ÂˇøLb˝Øs˚	Û¸Du
+endstream
+endobj
+39 0 obj
+<</Length 276/Filter/FlateDecode>>
+stream
+xú•ëπMÖAÑÛøäi À˜QP¬KzD¥èºè»÷ﬂz|åø!`0ûOñu‹æ¿4<Õ6˚KÁ•íx{ÜP·Ç>aYîê"«,ÉZº–1ÊÅ•ìUW@Çz$˚ ’ñÄ8	Oå‚v(WE@îL+8OAçfÉ0gl«çÏHä8*EÌ¶∫Ìö:zAUŸ+!mY{ç◊*À®Ñª·4£%´$.ÒBíu∫ÂAÉ¶ábà;Ÿ–‘Õ‚k¶Êﬂy“µmﬂ%⁄4kV€≤sÍÒÄUC˙‘ãê]-ijó≠uÒX˘XÌœ◊˚ıqΩ_Ø◊˜?5P¶<gbyD˜µ*ãÀñìb3ŒY78˘;Ã˚ı˙.ŒnÏ
+endstream
+endobj
+40 0 obj
+<</Length 129/Filter/FlateDecode>>
+stream
+xú5Õ±√0¿ﬁS¸~EZñ&ê.…ÓÇ∏HïıQpw‰?»/Éa÷0C	'å›z3Ô#e™®‚yÉ∏„··ç0G„Ü°©Bï”°€Ñs«1YY≥V°FG(&F,∂kkå—Ì7ñ¨‰‡˘@„F…sNMÀky¸œ∆)|
+endstream
+endobj
+41 0 obj
+<</Length 148/Filter/FlateDecode>>
+stream
+xú≠é1¬0E˜û‚_†ñmú49R7‡ŸP;t‚˙»IP√€Û∑ÂˇåY0õ1‘Pv0eŒâ/Ÿ∑TI%‚~Ö–Ç+Oò-†î∞wNî`!~ë( iøPÖezL∑È¯Õ'xI˜9-N≥÷\}âA≠=¯õèeƒÍ±˘L—˚=22«öBörpÿº˘‰P
+endstream
+endobj
+42 0 obj
+<</Length 194/Filter/FlateDecode>>
+stream
+xú≠êªm1DÛ´b–`ø‰núŸ.Aô!ä‹æqƒRÓÀàGﬁÏ<†.äKî¿◊;Ñ-]‚ΩˇrΩL>ﬂ†ú¯Å‚äoD9ÉÖ;¢Ö5‹¨ìÜ€ˆµ}lèZÕﬁ-59°∫,;÷†>πü#ÏΩg%’¶CÖY>eº gË∞é#°I√ıîcÌj´@3S"—ãé˘Ç4ò3%˝àËdù‘†5Aä≥¥ä>›+üDì√∆–<&¸Ê*v¡
+endstream
+endobj
+43 0 obj
+<</Length 184/Filter/FlateDecode>>
+stream
+xú•è;¬0É˜û¬‡W˛W'@bé–!uËƒıQ“JW6;…g«+'∆…%@ÛÇ@%î¥‘[jJ8‚vS¬åO∏däHX‡‚î5{u.JÖD≥ßÿ-Ê!çRd€Qúzß˙Nô4≤y;◊§ﬂ<˝m“Åç¥ÑyzL˜È:≠ˇU'€Ü™P‘Ï≠CŸææ⁄˛±&wTT√˙–LŸöu;@õoyMÓö6“>CﬂùnZi
+endstream
+endobj
+44 0 obj
+<</Title(primordia-icons)/Creator(VectorCraft)/Producer(VectorCraft)/ModDate(D:20261115064739Z)/CreationDate(D:20261115064739Z)>>
+endobj
+45 0 obj
+<</Length 1066/Type/Metadata/Subtype/XML>>
+stream
+<?xpacket begin="Ôªø" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="xmp-writer"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"  xmlns:xmp="http://ns.adobe.com/xap/1.0/"  xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"  xmlns:xmpTPg="http://ns.adobe.com/xap/1.0/t/pg/"  xmlns:pdf="http://ns.adobe.com/pdf/1.3/" ><dc:title><rdf:Alt><rdf:li xml:lang="x-default">primordia-icons</rdf:li></rdf:Alt></dc:title><xmp:CreatorTool>VectorCraft</xmp:CreatorTool><pdf:Producer>VectorCraft</pdf:Producer><xmp:ModifyDate>2026-11-15T06:47:39+00:00</xmp:ModifyDate><xmp:CreateDate>2026-11-15T06:47:39+00:00</xmp:CreateDate><xmpTPg:NPages>14</xmpTPg:NPages><dc:format>application/pdf</dc:format><xmpMM:InstanceID>9ELrn3NrOfjG7mbehpWrIQ==</xmpMM:InstanceID><xmpMM:DocumentID>9ELrn3NrOfjG7mbehpWrIQ==</xmpMM:DocumentID><xmpMM:RenditionClass>default</xmpMM:RenditionClass><pdf:PDFVersion>1.7</pdf:PDFVersion></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="r"?>
+endstream
+endobj
+46 0 obj
+<</ViewerPreferences<</DisplayDocTitle true>>/Type/Catalog/Pages 1 0 R/Metadata 45 0 R>>
+endobj
+xref
+0 47
+0000000000 65535 f
+0000000016 00000 n
+0000000160 00000 n
+0000000213 00000 n
+0000000266 00000 n
+0000000319 00000 n
+0000000372 00000 n
+0000000425 00000 n
+0000000478 00000 n
+0000000531 00000 n
+0000000584 00000 n
+0000000638 00000 n
+0000000692 00000 n
+0000000746 00000 n
+0000000800 00000 n
+0000000854 00000 n
+0000000908 00000 n
+0000001043 00000 n
+0000001178 00000 n
+0000001313 00000 n
+0000001448 00000 n
+0000001583 00000 n
+0000001718 00000 n
+0000001853 00000 n
+0000001988 00000 n
+0000002124 00000 n
+0000002260 00000 n
+0000002396 00000 n
+0000002532 00000 n
+0000002668 00000 n
+0000002804 00000 n
+0000003021 00000 n
+0000003300 00000 n
+0000003592 00000 n
+0000003862 00000 n
+0000004181 00000 n
+0000004406 00000 n
+0000004767 00000 n
+0000005056 00000 n
+0000005271 00000 n
+0000005616 00000 n
+0000005814 00000 n
+0000006031 00000 n
+0000006294 00000 n
+0000006547 00000 n
+0000006693 00000 n
+0000007836 00000 n
+trailer
+<</Size 47/Root 46 0 R/Info 44 0 R/ID[(9ELrn3NrOfjG7mbehpWrIQ==)(9ELrn3NrOfjG7mbehpWrIQ==)]>>
+startxref
+7941
+%%EOF

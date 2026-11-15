@@ -10,6 +10,7 @@ import { lerpLook, type Look } from './look';
 import { DepthLife } from './depthLife';
 import { drawMetamorph, emergeScale } from './metamorph';
 import { META_SWAP } from '../game/game';
+import { Terrain } from './terrain';
 
 interface Snow { x: number; y: number; s: number; d: number; a: number }
 
@@ -33,6 +34,10 @@ export class Renderer {
   micro = new Microcosm();
   /** Blender-rendered 3D microorganisms drifting in the parallax depths */
   depth = new DepthLife();
+  /** dry land: ground, shoreline, plants and the weather over them */
+  terrain = new Terrain();
+  /** 0..1: the player's body is on dry ground (casts a shadow, loses its underwater glow) */
+  private playerGround = 0;
   /** looping caustic light (12 frames, tinted once on load) */
   private caustics: HTMLCanvasElement | null = null;
   /** old body captured when a metamorphosis begins */
@@ -156,6 +161,7 @@ export class Renderer {
     this.micro.setEra(era);
     const [deep, near] = this.micro.backdrop(env, cx, cy, era, blend(this.zw, (k) => ZONES[k].deep), blend(this.zw, (k) => ZONES[k].near));
     const light = env.light(cx, cy);
+    this.terrain.update(env, cx, cy, dt);
     const WORLD_W = env.w, WORLD_H = env.h;
     const depthDark = clamp(cy / WORLD_H, 0, 1);
     const top = mixHex(near, '#000000', depthDark * 0.35);
@@ -166,58 +172,63 @@ export class Renderer {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
 
-    // soft cytoplasmic clouds (parallax)
-    ctx.globalCompositeOperation = 'lighter';
-    this.tile(this.nebulaA, cx * z * 0.05, cy * z * 0.05, (micro ? 0.14 : 0.34) + light * (micro ? 0.1 : 0.16), 1.4);
-    this.tile(this.nebulaB, cx * z * 0.12, cy * z * 0.12, (micro ? 0.1 : 0.24) + light * (micro ? 0.1 : 0.2), 1);
-    ctx.globalCompositeOperation = 'source-over';
+    // when the whole view is dry ground, everything underwater is painted over: don't draw it at all
+    const dry = this.allLand(env, cx, cy, w / z / 2, h / z / 2);
 
-    // caustic light rippling through the water: strongest in the sunlit shallows
-    const causticA = (this.caustics ? 1 : 0) * Math.pow(Math.max(0, light - 0.2), 1.3) * (micro ? 0.22 : 0.3) * (env.isLand(cx, cy) ? 0 : 1);
-    if (causticA > 0.01) this.drawCaustics(ctx, w, h, cx * z * 0.35, cy * z * 0.35, causticA);
-
-    // sunlight shafts only once life is large enough to see the surface (Era IV+)
-    if (!micro && light > 0.15) {
+    if (!dry) {
+      // soft cytoplasmic clouds (parallax)
       ctx.globalCompositeOperation = 'lighter';
-      const n = 5;
-      for (let i = 0; i < n; i++) {
-        const baseX = ((i / n) * w * 1.6 - (cx * z * 0.08) % (w * 1.6) + w * 1.6) % (w * 1.6) - w * 0.3;
-        const sway = Math.sin(this.time * 0.25 + i * 1.7) * 40;
-        const bw = 60 + (i % 3) * 50;
-        const a = (light - 0.15) * 0.16 * (0.6 + 0.4 * Math.sin(this.time * 0.4 + i * 2.1));
-        const g = ctx.createLinearGradient(0, 0, 0, h);
-        g.addColorStop(0, `rgba(190,255,240,${a})`);
-        g.addColorStop(1, 'rgba(190,255,240,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.moveTo(baseX + sway, 0);
-        ctx.lineTo(baseX + sway + bw, 0);
-        ctx.lineTo(baseX + sway + bw * 2.2 + 120, h);
-        ctx.lineTo(baseX + sway + 120, h);
-        ctx.closePath();
-        ctx.fill();
-      }
+      this.tile(this.nebulaA, cx * z * 0.05, cy * z * 0.05, (micro ? 0.14 : 0.34) + light * (micro ? 0.1 : 0.16), 1.4);
+      this.tile(this.nebulaB, cx * z * 0.12, cy * z * 0.12, (micro ? 0.1 : 0.24) + light * (micro ? 0.1 : 0.2), 1);
       ctx.globalCompositeOperation = 'source-over';
-    }
 
-    // the living soup: distant cells, molecules, debris, flow and Brownian motion
-    this.micro.drawBack(ctx, w, h, cx, cy, z, env, light, dt);
-    // 3D microorganisms in the depths (GITCRAFT MeshCraft renders)
-    this.depth.setEra(era);
-    ctx.globalCompositeOperation = 'lighter';
-    this.depth.draw(ctx, w, h, cx, cy, z, this.time, light, env.isLand(cx, cy) ? 0.12 : 1);
-    ctx.globalCompositeOperation = 'source-over';
+      // caustic light rippling through the water: strongest in the sunlit shallows
+      const causticA = (this.caustics ? 1 : 0) * Math.pow(Math.max(0, light - 0.2), 1.3) * (micro ? 0.22 : 0.3) * (env.isLand(cx, cy) ? 0 : 1);
+      if (causticA > 0.01) this.drawCaustics(ctx, w, h, cx * z * 0.35, cy * z * 0.35, causticA);
 
-    // drifting marine snow for the larger eras
-    if (!micro) {
-      ctx.fillStyle = '#d8fff6';
-      for (const s of this.snow) {
-        const px = mod(s.x * w * 1.2 - cx * z * s.d * 0.4 + this.time * 6 * s.d, w * 1.2) - w * 0.1;
-        const py = mod(s.y * h * 1.2 - cy * z * s.d * 0.4 - this.time * 3 * s.d, h * 1.2) - h * 0.1;
-        ctx.globalAlpha = s.a * (0.5 + light * 0.5);
-        ctx.fillRect(px, py, s.s * s.d * 1.6, s.s * s.d * 1.6);
+      // sunlight shafts only once life is large enough to see the surface (Era IV+)
+      if (!micro && light > 0.15) {
+        ctx.globalCompositeOperation = 'lighter';
+        const n = 5;
+        for (let i = 0; i < n; i++) {
+          const baseX = ((i / n) * w * 1.6 - (cx * z * 0.08) % (w * 1.6) + w * 1.6) % (w * 1.6) - w * 0.3;
+          const sway = Math.sin(this.time * 0.25 + i * 1.7) * 40;
+          const bw = 60 + (i % 3) * 50;
+          const a = (light - 0.15) * 0.16 * (0.6 + 0.4 * Math.sin(this.time * 0.4 + i * 2.1));
+          const g = ctx.createLinearGradient(0, 0, 0, h);
+          g.addColorStop(0, `rgba(190,255,240,${a})`);
+          g.addColorStop(1, 'rgba(190,255,240,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.moveTo(baseX + sway, 0);
+          ctx.lineTo(baseX + sway + bw, 0);
+          ctx.lineTo(baseX + sway + bw * 2.2 + 120, h);
+          ctx.lineTo(baseX + sway + 120, h);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'source-over';
       }
-      ctx.globalAlpha = 1;
+
+      // the living soup: distant cells, molecules, debris, flow and Brownian motion
+      this.micro.drawBack(ctx, w, h, cx, cy, z, env, light, dt);
+      // 3D microorganisms in the depths (GITCRAFT MeshCraft renders)
+      this.depth.setEra(era);
+      ctx.globalCompositeOperation = 'lighter';
+      this.depth.draw(ctx, w, h, cx, cy, z, this.time, light, env.isLand(cx, cy) ? 0.12 : 1);
+      ctx.globalCompositeOperation = 'source-over';
+
+      // drifting marine snow for the larger eras
+      if (!micro) {
+        ctx.fillStyle = '#d8fff6';
+        for (const s of this.snow) {
+          const px = mod(s.x * w * 1.2 - cx * z * s.d * 0.4 + this.time * 6 * s.d, w * 1.2) - w * 0.1;
+          const py = mod(s.y * h * 1.2 - cy * z * s.d * 0.4 - this.time * 3 * s.d, h * 1.2) - h * 0.1;
+          ctx.globalAlpha = s.a * (0.5 + light * 0.5);
+          ctx.fillRect(px, py, s.s * s.d * 1.6, s.s * s.d * 1.6);
+        }
+        ctx.globalAlpha = 1;
+      }
     }
 
     // ───────────── world space ─────────────
@@ -226,15 +237,6 @@ export class Renderer {
     const vw = w / z / 2 + 20, vh = h / z / 2 + 20;
     const minX = cx - vw, maxX = cx + vw, minY = cy - vh, maxY = cy + vh;
     const t = env.time;
-
-    // world edge haze
-    if (minX < 0 || minY < 0 || maxX > WORLD_W || maxY > WORLD_H) {
-      ctx.fillStyle = 'rgba(0,6,14,0.55)';
-      if (minX < 0) ctx.fillRect(minX - 10, minY - 10, -minX + 10, maxY - minY + 20);
-      if (maxX > WORLD_W) ctx.fillRect(WORLD_W, minY - 10, maxX - WORLD_W + 10, maxY - minY + 20);
-      if (minY < 0) ctx.fillRect(minX - 10, minY - 10, maxX - minX + 20, -minY + 10);
-      if (maxY > WORLD_H) ctx.fillRect(minX - 10, WORLD_H, maxX - minX + 20, maxY - WORLD_H + 10);
-    }
 
     // biofilm strands: extracellular slime colonised by bacteria
     ctx.lineCap = 'round';
@@ -313,8 +315,26 @@ export class Renderer {
       if (Math.random() < dt * 8) this.fx.bubbles(v.x + rand(-v.r, v.r) * 0.4, v.y, 1, v.r * 0.4);
     }
 
-    // dry land (Era VI)
-    if (env.land) this.drawLand(game, minX, minY, maxX, maxY);
+    // dry land (Era VI+)
+    if (env.land) this.terrain.drawGround(ctx, env, era, minX, minY, maxX, maxY);
+
+    // the edge of the charted world: the view dims and falls away
+    if (minX < 0 || minY < 0 || maxX > WORLD_W || maxY > WORLD_H) {
+      const fade = Math.min(maxX - minX, maxY - minY) * 0.22;
+      const edge = (x0: number, y0: number, x1: number, y1: number, gx0: number, gy0: number, gx1: number, gy1: number) => {
+        const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+        g.addColorStop(0, 'rgba(0,6,14,0)');
+        g.addColorStop(1, 'rgba(0,6,14,0.78)');
+        ctx.fillStyle = g;
+        ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        ctx.fillStyle = 'rgba(0,6,14,0.78)';
+      };
+      if (minX < 0) { edge(-fade * 0.2, minY - 10, fade * 0.8, maxY + 10, fade * 0.8, 0, -fade * 0.2, 0); ctx.fillRect(minX - 10, minY - 10, -fade * 0.2 - minX + 10, maxY - minY + 20); }
+      if (maxX > WORLD_W) { edge(WORLD_W - fade * 0.8, minY - 10, WORLD_W + fade * 0.2, maxY + 10, WORLD_W - fade * 0.8, 0, WORLD_W + fade * 0.2, 0); ctx.fillRect(WORLD_W + fade * 0.2, minY - 10, maxX - WORLD_W, maxY - minY + 20); }
+      if (minY < 0) { edge(minX - 10, -fade * 0.2, maxX + 10, fade * 0.8, 0, fade * 0.8, 0, -fade * 0.2); ctx.fillRect(minX - 10, minY - 10, maxX - minX + 20, -fade * 0.2 - minY + 10); }
+      if (maxY > WORLD_H) { edge(minX - 10, WORLD_H - fade * 0.8, maxX + 10, WORLD_H + fade * 0.2, 0, WORLD_H - fade * 0.8, 0, WORLD_H + fade * 0.2); ctx.fillRect(minX - 10, WORLD_H + fade * 0.2, maxX - minX + 20, maxY - WORLD_H); }
+    }
+
 
     // rocks: translucent mineral grains under the microscope; boulders once life is large
     for (const r of env.rocks) {
@@ -354,7 +374,9 @@ export class Renderer {
     ctx.globalCompositeOperation = 'lighter';
     for (const n of game.world.nutrients) {
       if (!n.active || n.x < minX || n.x > maxX || n.y < minY || n.y > maxY) continue;
-      const fade = n.absorbT >= 0 ? 1 - n.absorbT : Math.min(1, n.life * 2);
+      // in air nothing scatters the light: food on land is a seed on the ground, not a glowing mote
+      const dry = env.land && env.isLand(n.x, n.y);
+      const fade = (n.absorbT >= 0 ? 1 - n.absorbT : Math.min(1, n.life * 2)) * (dry ? 0.4 : 1);
       const tw = 0.75 + 0.25 * Math.sin(n.phase * 3);
       if (n.kind === 'dna') {
         drawGlow(ctx, '#ffd166', n.x, n.y, n.r * 4, 0.6 * fade * tw);
@@ -363,7 +385,7 @@ export class Renderer {
       } else if (n.kind === 'scrap') {
         drawGlow(ctx, '#ffc2a8', n.x, n.y, n.r * 3, 0.45 * fade * tw);
       } else {
-        drawGlow(ctx, env.land && env.isLand(n.x, n.y) ? '#e6ff9a' : '#8cffe6', n.x, n.y, n.r * 3, 0.42 * fade * tw);
+        drawGlow(ctx, dry ? '#f0ffa8' : '#8cffe6', n.x, n.y, n.r * 3, 0.42 * fade * tw);
       }
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -397,6 +419,15 @@ export class Renderer {
           ctx.moveTo(qx + n.r * 0.32, qy); ctx.arc(qx, qy, n.r * 0.32, 0, TAU);
         }
         ctx.fill();
+      } else if (n.kind !== 'scrap' && env.land && env.isLand(n.x, n.y)) {
+        // a seed lying on the ground, with its own small shadow
+        const sa = n.phase * 0.15 + n.x;
+        ctx.fillStyle = rgba('#020c08', 0.3 * fade);
+        ctx.beginPath(); ctx.ellipse(n.x + n.r * 0.16, n.y + n.r * 0.2, n.r * 0.78, n.r * 0.5, sa, 0, TAU); ctx.fill();
+        ctx.fillStyle = rgba('#f4f0b4', 0.96 * fade);
+        ctx.beginPath(); ctx.ellipse(n.x, n.y, n.r * 0.78, n.r * 0.5, sa, 0, TAU); ctx.fill();
+        ctx.fillStyle = rgba('#8a9a3a', 0.8 * fade);
+        ctx.beginPath(); ctx.ellipse(n.x + n.r * 0.12, n.y + n.r * 0.1, n.r * 0.4, n.r * 0.2, sa, 0, TAU); ctx.fill();
       } else {
         ctx.fillStyle = rgba(n.kind === 'scrap' ? '#ffe2d0' : '#e8fff9', 0.9 * fade);
         ctx.beginPath(); ctx.arc(n.x, n.y, n.r * 0.55, 0, TAU); ctx.fill();
@@ -422,24 +453,8 @@ export class Renderer {
       const spd = Math.hypot(o.vx, o.vy) / (o.sp.speed || 1);
       const screenR = o.r * z;
       let dentA = 0, dentK = 0;
-      // indicators: hunting threat halo / edible hint
       if (!dying && p.alive && game.state !== 'title') {
         const dd = Math.hypot(o.x - p.x, o.y - p.y);
-        if (dd < p.r * 9 + o.r) {
-          if (game.isThreat(o)) {
-            const hunting = o.targetIsPlayer && o.mode === 'hunt';
-            const pulse = 0.5 + 0.5 * Math.sin(this.time * (hunting ? 9 : 4));
-            ctx.strokeStyle = `rgba(255,70,90,${(hunting ? 0.55 : 0.22) + pulse * 0.25 + o.windupT * 1.2})`;
-            ctx.lineWidth = Math.max(1.5 / z, o.r * 0.06);
-            ctx.setLineDash([o.r * 0.35, o.r * 0.2]);
-            ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 1.45 + pulse * o.r * 0.08, this.time * 0.8, this.time * 0.8 + TAU); ctx.stroke();
-            ctx.setLineDash([]);
-          } else if (game.canEat(o) === 'ok' && dd < p.r * 6 + o.r) {
-            ctx.strokeStyle = 'rgba(170,255,230,0.28)';
-            ctx.lineWidth = Math.max(1 / z, o.r * 0.05);
-            ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 1.35, 0, TAU); ctx.stroke();
-          }
-        }
         // membranes respond to the player: hunters reach toward you, prey shrink away
         const reach = (o.r + p.r) * 1.9;
         if (dd < reach && dd > 0.01) {
@@ -453,7 +468,7 @@ export class Renderer {
         angle: o.angle, hurt: o.hurtT > 0 ? o.hurtT * 3 : 0, flash: o.stunT > 0 ? 0.25 : 0,
         detail: screenR > 14 ? 1 : screenR > 5 ? 0.5 : 0.1, windup: o.windupT > 0 ? 1 : 0,
         dentA, dentK, divide: o.divideT > 0 ? o.divideT : 0, lysis: dying ? Math.min(1, o.dyingT * 1.2) : 0,
-        alarm: o.mode === 'flee' ? 1 : 0,
+        alarm: o.mode === 'flee' ? 1 : 0, ground: env.land && env.isLand(o.x, o.y) ? 1 : 0,
       });
     }
 
@@ -493,6 +508,35 @@ export class Renderer {
       if (game.state !== 'title' && (p.alive || game.state === 'dead')) this.drawPlayer(game, t, dt);
     }
 
+    // crowns of the tall plants pass over everything that walks
+    if (env.land) {
+      this.terrain.drawCanopy(ctx, env, era, minX, minY, maxX, maxY, p.x, p.y, p.r);
+      if (era >= 8) this.terrain.drawFlyover(ctx, cx, cy, this.viewRadiusWorld(), this.time);
+    }
+
+    // indicators: hunting threat halo / edible hint (above the canopy, so a hunter is never hidden)
+    if (p.alive && game.state !== 'title') {
+      for (const o of vis) {
+        if (o.dyingT >= 0) continue;
+        const dd = Math.hypot(o.x - p.x, o.y - p.y);
+        if (dd < p.r * 9 + o.r) {
+          if (game.isThreat(o)) {
+            const hunting = o.targetIsPlayer && o.mode === 'hunt';
+            const pulse = 0.5 + 0.5 * Math.sin(this.time * (hunting ? 9 : 4));
+            ctx.strokeStyle = `rgba(255,70,90,${(hunting ? 0.55 : 0.22) + pulse * 0.25 + o.windupT * 1.2})`;
+            ctx.lineWidth = Math.max(1.5 / z, o.r * 0.06);
+            ctx.setLineDash([o.r * 0.35, o.r * 0.2]);
+            ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 1.45 + pulse * o.r * 0.08, this.time * 0.8, this.time * 0.8 + TAU); ctx.stroke();
+            ctx.setLineDash([]);
+          } else if (game.canEat(o) === 'ok' && dd < p.r * 6 + o.r) {
+            ctx.strokeStyle = 'rgba(170,255,230,0.28)';
+            ctx.lineWidth = Math.max(1 / z, o.r * 0.05);
+            ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 1.35, 0, TAU); ctx.stroke();
+          }
+        }
+      }
+    }
+
     // digestion
     for (let i = this.food.length - 1; i >= 0; i--) { this.food[i].k += dt / 4.5; if (this.food[i].k >= 1) this.food.splice(i, 1); }
 
@@ -515,6 +559,9 @@ export class Renderer {
       ctx.drawImage(bs, px - b.s, py - b.s, b.s * 2, b.s * 2);
     }
     ctx.globalAlpha = 1;
+
+    // weather over dry land: cloud shadows, warm light, drifting seed
+    this.terrain.drawAtmosphere(ctx, w, h, cx, cy, z, this.time);
 
     // darkness of the abyss: visibility shrinks around the player
     const dark = game.state === 'title' ? 0 : clamp(env.darkness(p.x, p.y) - p.stats.vision * 0.6, 0, 0.95);
@@ -540,7 +587,12 @@ export class Renderer {
       ctx.globalCompositeOperation = 'source-over';
     }
 
-    if (this.vignette) ctx.drawImage(this.vignette, 0, 0, w, h);
+    if (this.vignette) {
+      // open sky: the dark of the deep lifts on land
+      ctx.globalAlpha = 1 - 0.62 * this.terrain.landK;
+      ctx.drawImage(this.vignette, 0, 0, w, h);
+      ctx.globalAlpha = 1;
+    }
 
     // danger vignette
     const hurt = clamp(p.hurtT * 2.5, 0, 1);
@@ -591,6 +643,7 @@ export class Renderer {
   private drawPlayer(game: Game, t: number, dt: number) {
     const ctx = this.ctx, p = game.player, z = this.cam.zoom;
     const look = this.displayLook(game, dt);
+    this.playerGround = damp(this.playerGround, p.onLand ? 1 : 0, 6, dt);
     const spd = clamp(Math.hypot(p.vx, p.vy) / (p.maxSpeed || 1), 0, 1.6);
     const deadK = p.alive ? 1 : 0;
     // trailing stinging tentacles
@@ -624,7 +677,7 @@ export class Renderer {
       ctx.strokeStyle = rgba(look.membrane, 0.25);
       ctx.lineWidth = Math.max(1 / z, p.r * 0.04);
       ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(s.x, s.y); ctx.stroke();
-      drawOrganism(ctx, { ...look, flagella: 0, spikes: 0, receptors: 0, tentacles: 0, cells: 0, pores: 0, chloro: Math.min(2, look.chloro || 0), mito: 0, vesicles: 0, lure: 0, groove: false, eyespot: false, elong: 0, taper: 0, slipper: 0, lobes: 0 }, s.x, s.y, p.r * 0.36, { seed: s.a * 10, t, speed: 0, angle: s.a, detail: 0.5 });
+      drawOrganism(ctx, { ...look, flagella: 0, spikes: 0, receptors: 0, tentacles: 0, cells: 0, pores: 0, chloro: Math.min(2, look.chloro || 0), mito: 0, vesicles: 0, lure: 0, groove: false, eyespot: false, elong: 0, taper: 0, slipper: 0, lobes: 0 }, s.x, s.y, p.r * 0.36, { seed: s.a * 10, t, speed: 0, angle: s.a, detail: 0.5, ground: this.playerGround });
     }
     // pulse wave
     if (p.pulseT >= 0) {
@@ -665,7 +718,7 @@ export class Renderer {
       dentA, dentK, food: this.food,
       seed: 3.7, t, speed: spd, angle: p.angle, alpha: deadK ? (p.hiddenT > 0 || (p.stats.stealth > 0 && p.stillT > 0.6) ? 0.55 : 1) : 0.35,
       hurt: p.hurtT > 0 ? p.hurtT * 2.5 : 0, flash: transform * 0.8, engulf: p.engulfT > 0 ? 1 : 0,
-      harden: p.hardenT > 0 ? 0.6 + 0.4 * Math.sin(t * 12) : 0, pulse: Math.max(p.eatPulse, p.growPulse), detail: 1,
+      harden: p.hardenT > 0 ? 0.6 + 0.4 * Math.sin(t * 12) : 0, pulse: Math.max(p.eatPulse, p.growPulse), detail: 1, ground: this.playerGround,
     });
     // subtle self-highlight ring so the player is always findable
     ctx.strokeStyle = 'rgba(230,255,250,0.10)';
@@ -810,138 +863,15 @@ export class Renderer {
     }
   }
 
-  /** Shoreline, beach and ground cover for Era VI. */
-  private drawLand(game: Game, minX: number, minY: number, maxX: number, maxY: number) {
-    const ctx = this.ctx, env = game.env, t = env.time;
-    const k = env.scale;
-    const pad = (maxX - minX) * 0.1;
-    const x0 = minX - pad, x1 = maxX + pad;
-    const n = 64;
-    const xs: number[] = [], ys: number[] = [];
-    let anyVisible = false;
-    for (let i = 0; i <= n; i++) {
-      const x = x0 + ((x1 - x0) * i) / n;
-      const y = env.coastY(x);
-      xs.push(x); ys.push(y);
-      if (y > minY) anyVisible = true;
+  /** Is every part of the view over dry land (no sea, no lake)? */
+  private allLand(env: Game['env'], cx: number, cy: number, hw: number, hh: number): boolean {
+    if (!env.land || this.terrain.landK < 0.98) return false;
+    for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) if (!env.isLand(cx + dx * hw, cy + dy * hh)) return false;
+    if (env.lake) {
+      const [lx, ly, lr] = env.lakeBasin;
+      if (Math.abs(lx - cx) < hw + lr * 1.3 && Math.abs(ly - cy) < hh + lr * 1.3) return false;
     }
-    const [ix, iy] = env.island;
-    const ir = env.island[2] * 1.25;
-    const islandVisible = ix + ir > minX && ix - ir < maxX && iy + ir > minY && iy - ir < maxY;
-    if (!anyVisible && !islandVisible) return;
-
-    const band = 120 * k;
-    const groundPath = () => {
-      ctx.beginPath();
-      if (anyVisible) {
-        ctx.moveTo(x0, minY - pad);
-        for (let i = 0; i <= n; i++) ctx.lineTo(xs[i], ys[i]);
-        ctx.lineTo(x1, minY - pad);
-        ctx.closePath();
-      }
-      if (islandVisible) {
-        for (let i = 0; i <= 48; i++) {
-          const a = (i / 48) * TAU;
-          const rr = env.islandRadius(a);
-          const px = ix + Math.cos(a) * rr, py = iy + Math.sin(a) * rr;
-          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-      }
-    };
-    const coastStroke = () => {
-      ctx.beginPath();
-      if (anyVisible) for (let i = 0; i <= n; i++) { if (i === 0) ctx.moveTo(xs[i], ys[i]); else ctx.lineTo(xs[i], ys[i]); }
-      if (islandVisible) {
-        for (let i = 0; i <= 48; i++) {
-          const a = (i / 48) * TAU;
-          const rr = env.islandRadius(a);
-          const px = ix + Math.cos(a) * rr, py = iy + Math.sin(a) * rr;
-          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-      }
-    };
-
-    // waves lapping on the water side
-    for (let w = 0; w < 3; w++) {
-      const ph = (t * 0.35 + w / 3) % 1;
-      ctx.save();
-      ctx.translate(0, ph * band * 0.9);
-      coastStroke();
-      ctx.strokeStyle = `rgba(230,255,250,${0.32 * (1 - ph)})`;
-      ctx.lineWidth = band * 0.12 * (1 - ph * 0.5);
-      ctx.stroke();
-      ctx.restore();
-    }
-    // shallow turquoise water hugging the shore
-    coastStroke();
-    ctx.strokeStyle = 'rgba(120,230,220,0.18)';
-    ctx.lineWidth = band * 2.2;
-    ctx.stroke();
-
-    // ground
-    groundPath();
-    const midCoast = anyVisible ? ys[n >> 1] : iy;
-    const g = ctx.createLinearGradient(0, midCoast, 0, midCoast - (maxY - minY) * 1.2);
-    g.addColorStop(0, '#6f7f4f');
-    g.addColorStop(0.25, '#466a3a');
-    g.addColorStop(1, '#22381f');
-    ctx.fillStyle = g;
-    ctx.fill();
-
-    ctx.save();
-    groundPath();
-    ctx.clip();
-    // beach and wet sand inside the land
-    coastStroke();
-    ctx.strokeStyle = '#d8c79a';
-    ctx.lineWidth = band * 1.6;
-    ctx.stroke();
-    coastStroke();
-    ctx.strokeStyle = '#a8966a';
-    ctx.lineWidth = band * 0.5;
-    ctx.stroke();
-    // ground cover: moss tufts, pebbles and sprigs on a deterministic grid
-    const C = 150 * k;
-    const cx0 = Math.floor(minX / C), cx1 = Math.ceil(maxX / C);
-    const cy0 = Math.floor(minY / C), cy1 = Math.ceil(maxY / C);
-    for (let gx = cx0; gx <= cx1; gx++) {
-      for (let gy = cy0; gy <= cy1; gy++) {
-        const h = hash2(gx, gy);
-        if (h < 0.35) continue;
-        const px = (gx + hash2(gy, gx * 3)) * C, py = (gy + hash2(gx * 7, gy)) * C;
-        if (!env.isLand(px, py)) continue;
-        const beach = py > env.coastY(px) - band * 1.6 && py < env.coastY(px) + 1;
-        const s2 = C * (0.12 + h * 0.18);
-        if (beach || h < 0.5) {
-          ctx.fillStyle = beach ? 'rgba(120,105,80,0.55)' : 'rgba(150,160,150,0.45)';
-          ctx.beginPath(); ctx.ellipse(px, py, s2 * 0.6, s2 * 0.4, h * 6, 0, TAU); ctx.fill();
-          ctx.fillStyle = 'rgba(255,255,255,0.18)';
-          ctx.beginPath(); ctx.ellipse(px - s2 * 0.15, py - s2 * 0.12, s2 * 0.2, s2 * 0.1, h * 6, 0, TAU); ctx.fill();
-        } else if (h < 0.8) {
-          ctx.fillStyle = 'rgba(120,180,80,0.5)';
-          for (let q = 0; q < 4; q++) { ctx.beginPath(); ctx.arc(px + Math.cos(q * 1.7 + h) * s2 * 0.5, py + Math.sin(q * 1.7 + h) * s2 * 0.4, s2 * 0.42, 0, TAU); ctx.fill(); }
-          ctx.fillStyle = 'rgba(190,230,120,0.35)';
-          ctx.beginPath(); ctx.arc(px - s2 * 0.2, py - s2 * 0.2, s2 * 0.25, 0, TAU); ctx.fill();
-        } else {
-          const sway = Math.sin(t * 1.2 + h * 10) * 0.12;
-          ctx.strokeStyle = 'rgba(150,210,100,0.75)';
-          ctx.lineWidth = s2 * 0.08;
-          ctx.beginPath();
-          for (let q = 0; q < 5; q++) {
-            const a = -Math.PI / 2 + (q - 2) * 0.45 + sway;
-            ctx.moveTo(px, py); ctx.quadraticCurveTo(px + Math.cos(a) * s2 * 0.6, py + Math.sin(a) * s2 * 0.4, px + Math.cos(a) * s2 * 1.2, py + Math.sin(a) * s2 * 1.1);
-          }
-          ctx.stroke();
-        }
-      }
-    }
-    ctx.restore();
-    // sunlit edge along the shoreline
-    coastStroke();
-    ctx.strokeStyle = 'rgba(255,248,220,0.35)';
-    ctx.lineWidth = band * 0.08;
-    ctx.stroke();
+    return true;
   }
 
   private drawCaustics(ctx: CanvasRenderingContext2D, w: number, h: number, ox: number, oy: number, alpha: number) {
@@ -981,9 +911,4 @@ function blend(w: Record<ZoneId, number>, f: (k: ZoneId) => string): string {
     r += ((n >> 16) & 255) * w[k]; g += ((n >> 8) & 255) * w[k]; b += (n & 255) * w[k];
   }
   return '#' + ((1 << 24) | (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b)).toString(16).slice(1);
-}
-
-function hash2(x: number, y: number) {
-  const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-  return v - Math.floor(v);
 }

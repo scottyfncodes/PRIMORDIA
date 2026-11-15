@@ -6,6 +6,7 @@ import { ERAS, formFor, FORMS, MAX_PLAYABLE_ERA } from '../src/game/eras';
 import { Progress, type KV } from '../src/game/progress';
 import { Game } from '../src/game/game';
 import { SPECIES, SPECIES_BY_ID } from '../src/sim/species';
+import { cladeOf } from '../src/game/codex';
 
 describe('spatial grid', () => {
   it('finds items within radius only', () => {
@@ -284,8 +285,8 @@ describe('era VII', () => {
     for (let e = 2; e <= 7; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, arch); g.confirmLeap(); }
     return g;
   };
-  it('is the last playable era, with amniote forms, new mutations and a reptile ecosystem', () => {
-    expect(MAX_PLAYABLE_ERA).toBe(7);
+  it('has amniote forms, new mutations and a reptile ecosystem', () => {
+    expect(ERAS[6].playable).toBe(true);
     expect(ERAS[5].mutationsToLeap).toBeLessThan(30);
     expect(SPECIES.filter((s) => s.eras.includes(7)).length).toBeGreaterThanOrEqual(8);
     expect(SPECIES.filter((s) => s.eras[0] === 7 && s.category === 'predator').length).toBeGreaterThanOrEqual(1);
@@ -341,6 +342,150 @@ describe('era VII', () => {
     p.growth = p.era.growthNeeded;
     expect(p.mutationCount).toBeGreaterThanOrEqual(p.era.mutationsToLeap);
     expect(g.leapAvailable).toBe(true);
+  });
+});
+
+describe('era VIII', () => {
+  const still = { mx: 0, my: 0, burst: false, abilities: {} };
+  const toEra8 = (arch: 'predator' | 'defender' | 'opportunist' | 'phototroph' = 'opportunist') => {
+    const g = new Game();
+    g.newRun();
+    for (let e = 2; e <= 8; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, arch); g.confirmLeap(); }
+    return g;
+  };
+  it('is the last playable era, with dinosaur forms, mutations and an ecosystem on land and at sea', () => {
+    expect(MAX_PLAYABLE_ERA).toBe(8);
+    expect(ERAS[6].mutationsToLeap).toBeLessThan(30);
+    const here = SPECIES.filter((s) => s.eras.includes(8));
+    expect(here.length).toBeGreaterThanOrEqual(12);
+    expect(here.filter((s) => s.category === 'predator' && s.habitat === 'land').length).toBeGreaterThanOrEqual(2);
+    expect(here.filter((s) => !s.habitat || s.habitat === 'water').length).toBeGreaterThanOrEqual(3);
+    // something to eat on land from the first moment of the era
+    expect(here.some((s) => s.habitat === 'land' && s.category !== 'predator' && s.size[1] < ERAS[7].minR * 0.9)).toBe(true);
+    expect(TRAITS.filter((t) => t.era === 8).length).toBeGreaterThanOrEqual(8);
+    const forms = FORMS.filter((f) => f.era === 8);
+    expect(forms.length).toBe(4);
+    for (const f of forms) { const l = buildPlayerLook({}, 8, f); expect(l.legs).toBe(2); expect(l.neck).toBeGreaterThan(0); }
+    expect(buildPlayerLook({}, 8, formFor(8, 'predator')).biped).toBe(true);
+    expect(buildPlayerLook({}, 8, formFor(8, 'defender')).tailClub).toBe(true);
+    expect(buildPlayerLook({}, 8, formFor(8, 'phototroph')).backPlates).toBeGreaterThan(0);
+    expect(buildPlayerLook({}, 8, formFor(8, 'opportunist')).feathers).toBeGreaterThan(0);
+  });
+  it('every species of the era has a clade of its own and unique ids', () => {
+    expect(new Set(SPECIES.map((s) => s.id)).size).toBe(SPECIES.length);
+    for (const s of SPECIES.filter((s) => s.eras[0] === 8)) expect(cladeOf(s).key).not.toBe('chordata');
+  });
+  it('the leap grows the continent and fills a lake inland', () => {
+    const g = toEra8();
+    const env = g.env;
+    expect(env.scale).toBe(40);
+    expect(env.lake).toBe(true);
+    const [lx, ly, lr] = env.lakeBasin;
+    expect(ly + lr * 1.3).toBeLessThan(env.coastY(lx));
+    expect(env.isLand(lx, ly)).toBe(false);
+    expect(env.zoneAt(lx, ly)).toBe('shallows');
+    expect(env.isLand(lx + lr * 1.6, ly)).toBe(true);
+    expect(env.zoneAt(lx + lr * 1.6, ly)).toBe('land');
+    // the lake is open water: light, no thicket drag, no abyssal dark
+    expect(env.density(lx, ly)).toBe(0);
+    expect(env.darkness(lx, ly)).toBeLessThan(0.1);
+    g.newRun();
+    expect(g.env.lake).toBe(false);
+    expect(g.env.isLand(lx, ly)).toBe(false);
+  });
+  it('a life in era VII can leap into era VIII', () => {
+    const g = new Game();
+    g.newRun();
+    for (let e = 2; e <= 7; e++) { g.state = 'leap'; g.pendingLeapForm = formFor(e, 'predator'); g.confirmLeap(); }
+    const p = g.player;
+    while (p.mutationCount < p.era.mutationsToLeap) {
+      const offer = generateOffers(p.traits, p.eraIndex, 30).find((o) => o);
+      if (!offer) break;
+      p.addTrait(offer.trait.id);
+    }
+    p.growth = p.era.growthNeeded;
+    expect(g.leapAvailable).toBe(true);
+    g.state = 'playing';
+    g.openLeap();
+    expect(g.leapOptions.every((f) => f.era === 8)).toBe(true);
+    g.confirmLeap(0);
+    expect(p.eraIndex).toBe(8);
+    expect(g.leapAvailable).toBe(false);
+  });
+  it('era VIII mutations change the body and the stats', () => {
+    const g = toEra8('defender');
+    const p = g.player;
+    const hp = p.stats.maxHp, taken = p.stats.damageTaken;
+    p.addTrait('osteoderms');
+    expect(p.stats.damageTaken).toBeLessThan(taken);
+    expect(p.stats.maxHp).toBeGreaterThan(hp);
+    expect(isEligible(TRAIT_BY_ID.hollow, p.traits, 8)).toBe(false);
+    p.addTrait('club');
+    expect(p.stats.contactDamage).toBeGreaterThanOrEqual(100);
+    p.addTrait('dplates');
+    expect(p.look.backPlates).toBeGreaterThan(0);
+    expect(p.stats.bask).toBeGreaterThan(0);
+    p.addTrait('longneck');
+    expect(p.look.neck).toBeGreaterThanOrEqual(0.6);
+    p.addTrait('sickle');
+    expect(p.stats.abilities).toContain('strike');
+    expect(p.look.sickle).toBe(true);
+    expect(isEligible(TRAIT_BY_ID.feathers, {}, 7)).toBe(false);
+  });
+  it('a roar routs hunters it can frighten and only checks the ones it cannot', () => {
+    const g = toEra8('predator');
+    const p = g.player;
+    p.addTrait('roar');
+    expect(p.stats.abilities).toContain('roar');
+    g.world.clearLife();
+    p.x = g.env.w / 2; p.y = g.env.coastY(p.x) - p.r * 30; p.vx = p.vy = 0;
+    g.world.cx = p.x; g.world.cy = p.y;
+    const place = (id: string, dx: number, r: number) => {
+      const o = g.world.spawnOrganism(SPECIES.find((s) => s.id === id)!, p.x + dx, p.y)!;
+      o.r = r; o.mode = 'hunt'; o.target = null; o.targetIsPlayer = true;
+      return o;
+    };
+    const small = place('sickleclaw', p.r * 4, p.r * 1.3);
+    const huge = place('tyrant', -p.r * 5, p.r * 2.2);
+    const prey = place('compy', p.r * 3, p.r * 0.4);
+    g.update(1 / 60, still); // the world indexes the newcomers
+    for (const o of [small, huge]) { o.mode = 'hunt'; o.targetIsPlayer = true; }
+    p.hp = p.maxHp;
+    g.update(1 / 60, { ...still, abilities: { roar: true } });
+    expect(small.mode).toBe('flee');
+    expect(small.targetIsPlayer).toBe(false);
+    expect(prey.stunT).toBeGreaterThan(1);
+    expect(p.cooldowns.roar).toBeGreaterThan(5);
+    for (let i = 0; i < 60; i++) { p.hp = p.maxHp; g.update(1 / 60, still); }
+    expect(small.mode).toBe('flee'); // still running a second later
+    expect(Math.hypot(small.x - p.x, small.y - p.y)).toBeGreaterThan(p.r * 4);
+    expect(huge.mode).not.toBe('flee');
+  });
+  it('wearing down the great beasts earns their milestones', () => {
+    const g = toEra8('predator');
+    const p = g.player;
+    p.addTrait('serrated');
+    g.world.clearLife();
+    p.x = g.env.w / 2; p.y = g.env.coastY(p.x) - p.r * 30;
+    g.world.cx = p.x; g.world.cy = p.y;
+    const titan = g.world.spawnOrganism(SPECIES.find((s) => s.id === 'longneck')!, p.x + p.r * 2, p.y)!;
+    for (let i = 0; i < 60 * 80 && titan.alive && titan.dyingT < 0; i++) {
+      p.energy = p.maxEnergy; p.hp = p.maxHp; p.cooldowns.strike = 0;
+      titan.x = p.x + (p.r + titan.r) * 0.9; titan.y = p.y;
+      g.update(1 / 60, { ...still, abilities: { strike: true } });
+    }
+    expect(g.run.milestones).toContain('giantfall');
+  });
+  it('a saved era VIII life resumes with its continent and lake', () => {
+    const g = toEra8('phototroph');
+    const s = snapshot(g);
+    expect(isValid(JSON.parse(JSON.stringify(s)))).toBe(true);
+    const g2 = new Game();
+    g2.resumeRun(JSON.parse(JSON.stringify(s)));
+    expect(g2.player.eraIndex).toBe(8);
+    expect(g2.env.lake).toBe(true);
+    expect(g2.env.inland).toBe(g.env.inland);
+    expect(g2.player.form.id).toBe('e8-phototroph');
   });
 });
 

@@ -1,4 +1,4 @@
-import { rgba, TAU } from '../engine/math';
+import { mixHex, rgba, TAU } from '../engine/math';
 import type { Look } from './look';
 import { drawGlow } from './sprites';
 
@@ -37,6 +37,8 @@ export interface DrawOpts {
   alarm?: number;
   /** food vacuoles being digested */
   food?: FoodVacuole[];
+  /** 0..1 standing on dry ground: the body is opaque, casts a shadow and loses its underwater glow */
+  ground?: number;
 }
 
 export interface FoodVacuole { a: number; d: number; s: number; color: string; k: number }
@@ -135,7 +137,9 @@ export function drawOrganism(ctx: CanvasRenderingContext2D, l: Look, x: number, 
 
   // bloom halo (world space)
   ctx.globalCompositeOperation = 'lighter';
-  drawGlow(ctx, l.glow, x, y, r * 3.1 * (o.glowScale ?? 1), 0.3 * (l.glowStrength ?? 1) * alpha + (o.windup || 0) * 0.5 + (o.harden || 0) * 0.4);
+  // in open air there is no water to scatter light: the halo all but vanishes (plants keep a little, to read as food)
+  const air = 1 - (o.ground || 0) * (l.body === 'plant' ? 0.55 : 0.86);
+  drawGlow(ctx, l.glow, x, y, r * 3.1 * (o.glowScale ?? 1), 0.3 * (l.glowStrength ?? 1) * alpha * air + (o.windup || 0) * 0.5 + (o.harden || 0) * 0.4);
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.save();
@@ -152,6 +156,7 @@ export function drawOrganism(ctx: CanvasRenderingContext2D, l: Look, x: number, 
     case 'swimmer': drawSwimmer(ctx, l, r, o, alpha); break;
     case 'frond': drawFrond(ctx, l, r, o, alpha); break;
     case 'nautilus': drawNautilus(ctx, l, r, o, alpha); break;
+    case 'plant': drawPlant(ctx, l, r, o, alpha); break;
     default: drawCell(ctx, l, r, o, alpha, detail);
   }
 
@@ -1001,19 +1006,35 @@ const SX = new Float32Array(24), SY = new Float32Array(24), SW = new Float32Arra
 function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawOpts, alpha: number) {
   const t = o.t, seed = o.seed;
   const elong = Math.min(1.6, Math.max(0, l.elong));
-  const L = r * (2.1 + elong * 0.6);
+  const neck = Math.min(1, l.neck || 0);
+  const L = r * (2.1 + elong * 0.6) * (1 + neck * 0.4);
   const vert = !!l.vertebrate;
+  const ground = o.ground || 0;
   const halfW = r * (vert ? 0.62 - elong * 0.12 : 0.6 - elong * 0.15);
   const N = Math.min(16, Math.max(4, l.segments || 8));
   const spd = Math.min(1.5, o.speed);
-  const amp = r * (0.07 + 0.12 * spd);
+  // a walking body sways from the hips; it does not ripple like a swimmer
+  const amp = r * (0.07 + 0.12 * spd) * (1 - 0.6 * ground);
   const freq = 3 + 7 * spd;
+  // head length and width, where the neck ends and the shoulders begin, and how thin the neck gets
+  const hw = l.head ?? 0.4, hl = 0.06 + hw * 0.1;
+  const nk = hl + 0.03 + 0.26 * neck, sh = nk + 0.1, nw = Math.min(hw * 0.8, 0.5 - 0.22 * neck);
+  const hipU = sh + 0.36 * (1 - sh);
   // spine
   for (let i = 0; i <= N; i++) {
     const u = i / N;
     SX[i] = L / 2 - u * L;
     SY[i] = Math.sin(u * 2.8 - t * freq + seed) * amp * Math.pow(u, 1.3);
-    const prof = vert
+    const bx = (u - sh) / (1 - sh);
+    const prof = neck > 0
+      // a distinct head, a neck, the barrel of the body over the hips, then a tail
+      ? (u < hl ? hw * (0.5 + 0.5 * Math.sin(Math.min(1, u / (hl * 0.6)) * Math.PI * 0.5))
+        : u < nk ? hw - (hw - nw) * (0.5 - 0.5 * Math.cos(((u - hl) / (nk - hl)) * Math.PI))
+        : u < sh ? nw + (1 - nw) * (0.5 - 0.5 * Math.cos(((u - nk) / (sh - nk)) * Math.PI))
+        : bx < 0.34 ? 1 - 0.06 * (bx / 0.34)
+        : bx < 0.6 ? 0.94 - 0.56 * (0.5 - 0.5 * Math.cos(((bx - 0.34) / 0.26) * Math.PI))
+        : 0.05 + 0.33 * Math.pow(1 - (bx - 0.6) / 0.4, 1.15))
+      : vert
       ? (u < 0.22 ? 0.62 + 0.38 * Math.sqrt(u / 0.22) : 1 - 0.86 * Math.pow((u - 0.22) / 0.78, 1.7))
       : (u < 0.14 ? 0.55 + 0.45 * Math.sqrt(u / 0.14) : 1 - 0.78 * Math.pow((u - 0.14) / 0.86, 1.35));
     SW[i] = halfW * prof * (1 + (o.pulse || 0) * 0.08);
@@ -1026,6 +1047,48 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
   }
   const tailAng = Math.atan2(SY[N] - SY[N - 1], SX[N] - SX[N - 1]);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const bodyPath = () => {
+    ctx.beginPath();
+    if (neck <= 0) {
+      ctx.moveTo(SX[0] + r * 0.12, SY[0]);
+      for (let i = 0; i <= N; i++) ctx.lineTo(SX[i] + SNX[i] * SW[i], SY[i] + SNY[i] * SW[i]);
+      for (let i = N; i >= 0; i--) ctx.lineTo(SX[i] - SNX[i] * SW[i], SY[i] - SNY[i] * SW[i]);
+      ctx.closePath();
+      return;
+    }
+    // a muzzle, then one flowing line down each flank (curves through the midpoints of the spine samples)
+    const nose = hw * halfW * 0.55;
+    ctx.moveTo(SX[0] + r * 0.14, SY[0]);
+    for (const side of [1, -1]) {
+      const from = side > 0 ? 0 : N, to = side > 0 ? N : 0, step = side > 0 ? 1 : -1;
+      if (side > 0) ctx.quadraticCurveTo(SX[0] + r * 0.12, SY[0] + SNY[0] * nose, SX[0] + SNX[0] * SW[0], SY[0] + SNY[0] * SW[0]);
+      for (let i = from; i !== to; i += step) {
+        const j = i + step;
+        const ax = SX[i] + SNX[i] * SW[i] * side, ay = SY[i] + SNY[i] * SW[i] * side, qx = SX[j] + SNX[j] * SW[j] * side, qy = SY[j] + SNY[j] * SW[j] * side;
+        ctx.quadraticCurveTo(ax, ay, (ax + qx) / 2, (ay + qy) / 2);
+      }
+      const ex = SX[to] + SNX[to] * SW[to] * side, ey = SY[to] + SNY[to] * SW[to] * side;
+      ctx.lineTo(ex, ey);
+      if (side < 0) ctx.quadraticCurveTo(SX[0] + r * 0.12, SY[0] - SNY[0] * nose, SX[0] + r * 0.14, SY[0]);
+    }
+    ctx.closePath();
+  };
+  // thin skin (sails, frills, fins) is see-through in water and solid in air
+  const skin = (a: number) => a + (1 - a) * 0.6 * ground;
+  // shadow on the ground: the sun stands to the upper left of the world, whichever way the body faces
+  if (ground > 0.02) {
+    const ca = Math.cos(-o.angle), sa = Math.sin(-o.angle);
+    const wx = r * 0.17, wy = r * 0.22;
+    ctx.save();
+    ctx.translate(wx * ca - wy * sa, wx * sa + wy * ca);
+    bodyPath();
+    ctx.fillStyle = rgba('#020c08', 0.3 * ground * alpha);
+    ctx.fill();
+    ctx.lineWidth = r * 0.16;
+    ctx.strokeStyle = rgba('#020c08', 0.1 * ground * alpha);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // tail fin
   const tf = (l.tailFin || 0) + (l.flagella || 0) * 0.35;
@@ -1035,7 +1098,7 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.save();
     ctx.translate(SX[N], SY[N]);
     ctx.rotate(tailAng + beat);
-    ctx.fillStyle = rgba(l.membrane, 0.5 * alpha);
+    ctx.fillStyle = rgba(l.membrane, skin(0.5) * alpha);
     ctx.strokeStyle = rgba(l.membrane, 0.85 * alpha);
     ctx.lineWidth = Math.max(0.8, r * 0.03);
     ctx.beginPath();
@@ -1061,39 +1124,154 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.restore();
   }
 
+  // plumage: a tail fan and a fringe of down, drawn beneath the body
+  if (l.feathers) {
+    const plume = l.feathers >= 2;
+    const fl = r * (plume ? 0.95 : 0.6);
+    ctx.save();
+    ctx.translate(SX[N], SY[N]);
+    ctx.rotate(tailAng + Math.sin(t * freq * 0.6 + seed) * 0.08);
+    const nf = plume ? 7 : 5;
+    for (let k = 0; k < nf; k++) {
+      const a = Math.PI + ((k / (nf - 1)) - 0.5) * (plume ? 1.1 : 0.7);
+      ctx.save();
+      ctx.rotate(a + Math.PI);
+      ctx.fillStyle = rgba(k % 2 ? l.glow : l.membrane, 0.9 * alpha);
+      ctx.strokeStyle = rgba(l.inner, 0.7 * alpha);
+      ctx.lineWidth = Math.max(0.4, r * 0.012);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(fl * 0.5, -fl * 0.13, fl, 0); ctx.quadraticCurveTo(fl * 0.5, fl * 0.13, 0, 0); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(fl * 0.92, 0); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+    // down: a soft, layered edge to the body, swept back
+    ctx.strokeStyle = rgba(mixHex(l.membrane, '#ffffff', 0.25), 0.9 * alpha);
+    ctx.lineWidth = Math.max(0.5, r * 0.04);
+    ctx.beginPath();
+    for (let i = 2; i < N; i++) {
+      for (const side of [-1, 1]) {
+        for (const f of [0, 0.34, 0.67]) {
+          const j = Math.min(N, i + 1);
+          const qx = SX[i] + (SX[j] - SX[i]) * f + SNX[i] * SW[i] * 0.86 * side, qy = SY[i] + (SY[j] - SY[i]) * f + SNY[i] * SW[i] * 0.86 * side;
+          const len = r * 0.1 * (1 + 0.3 * Math.sin(i * 2.1 + f * 9));
+          ctx.moveTo(qx, qy); ctx.lineTo(qx - len + SNX[i] * len * 0.45 * side, qy + SNY[i] * len * 0.45 * side);
+        }
+      }
+    }
+    ctx.stroke();
+  }
   // legs: walking gait (tetrapod limbs or arthropod legs)
   if (l.legs) {
     const n = Math.min(14, l.legs);
     const big = n <= 2;
     const ll = r * (l.legLen || 0.6);
     const gait = t * (2.5 + spd * 9);
-    ctx.strokeStyle = rgba(big ? l.inner : l.membrane, 0.9 * alpha);
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (let k = 0; k < n; k++) {
-      const u = n === 1 ? 0.3 : n === 2 ? [0.26, 0.62][k] : 0.14 + (k / (n - 1)) * 0.7;
-      const i = Math.min(N, Math.round(u * N));
-      for (const side of [-1, 1]) {
-        const ph = gait + k * Math.PI * (big ? 1 : 0.55) + (side > 0 ? 0 : Math.PI);
-        const swing = Math.sin(ph) * (0.15 + 0.45 * Math.min(1, spd + 0.15));
-        const lift = Math.max(0, Math.cos(ph));
-        const hx = SX[i] + SNX[i] * SW[i] * 0.75 * side, hy = SY[i] + SNY[i] * SW[i] * 0.75 * side;
-        // knee: out to the side and swinging fore/aft
-        const kx = hx + SNX[i] * ll * 0.55 * side + swing * ll * 0.5, ky = hy + SNY[i] * ll * 0.55 * side;
-        const fx = kx + swing * ll * 0.45 + ll * (big ? 0.25 : 0.1), fy = ky + SNY[i] * ll * (0.4 - lift * 0.12) * side;
-        ctx.lineWidth = Math.max(0.6, r * (big ? 0.11 : 0.035));
-        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
-        if (big) {
+    if (big) {
+      // limbs with weight in them: thigh, shin and a splayed foot
+      const flesh = mixHex(l.inner, l.membrane, 0.3), edge = mixHex(l.inner, '#000000', 0.5), claw = mixHex(l.membrane, '#fff6e0', 0.6);
+      // dinosaurs carry their legs under the body; older land animals sprawl
+      const under = !!(l.biped || l.erect);
+      const limbs: { u: number; len: number; arm?: boolean }[] = l.biped
+        ? [{ u: sh + 0.03, len: r * 0.5, arm: true }, { u: hipU, len: ll }]
+        : n === 1 ? [{ u: 0.3, len: ll }] : neck > 0 ? [{ u: sh + 0.04, len: ll }, { u: hipU, len: ll }] : [{ u: 0.26, len: ll }, { u: 0.62, len: ll }];
+      for (let k = 0; k < limbs.length; k++) {
+        const lb = limbs[k];
+        const i = Math.min(N, Math.round(lb.u * N));
+        for (const side of [-1, 1]) {
+          const hx = SX[i] + SNX[i] * SW[i] * 0.72 * side, hy = SY[i] + SNY[i] * SW[i] * 0.72 * side;
+          // unit vector pointing out of the flank on this side
+          const ox = SNX[i] * side, oy = SNY[i] * side;
+          let kx: number, ky: number, fx: number, fy: number;
+          if (lb.arm) {
+            // small arms held forward off the chest
+            const reach = 0.5 + 0.5 * Math.sin(t * 1.7 + side + seed);
+            kx = hx + lb.len * 0.3 + ox * lb.len * 0.4; ky = hy + oy * lb.len * (0.4 - reach * 0.08);
+            fx = kx + lb.len * 0.5 - ox * lb.len * 0.12; fy = ky - oy * lb.len * (0.12 + reach * 0.14);
+          } else if (under) {
+            // legs carried under the hips: the thigh swings forward, the foot lands beside the body
+            const ph = gait + k * Math.PI + (side > 0 ? 0 : Math.PI);
+            const swing = Math.sin(ph) * (0.18 + 0.5 * Math.min(1, spd + 0.1));
+            kx = hx + lb.len * (0.34 + swing * 0.22) + ox * lb.len * 0.3; ky = hy + oy * lb.len * 0.3;
+            fx = kx + lb.len * (0.3 + swing * 0.4) - ox * lb.len * 0.1; fy = ky - oy * lb.len * 0.1;
+          } else {
+            const ph = gait + k * Math.PI + (side > 0 ? 0 : Math.PI);
+            const swing = Math.sin(ph) * (0.15 + 0.45 * Math.min(1, spd + 0.15));
+            const lift = Math.max(0, Math.cos(ph));
+            // a sprawl: elbows out and forward, knees out and back, every foot pointing ahead
+            const set = k === 0 ? 0.2 : -0.14;
+            kx = hx + ox * lb.len * 0.5 + (set + swing * 0.5) * lb.len; ky = hy + oy * lb.len * 0.5;
+            fx = kx + (0.3 - set * 0.5 + swing * 0.45) * lb.len; fy = ky + oy * lb.len * (0.22 - lift * 0.1);
+          }
+          const w0 = r * (lb.arm ? 0.075 : l.biped ? 0.25 : under ? 0.19 : 0.15), w1 = w0 * (under && !lb.arm ? 0.56 : 0.68);
+          ctx.strokeStyle = rgba(edge, 0.95 * alpha);
+          ctx.lineWidth = Math.max(0.8, w0 + r * 0.035);
+          ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(kx, ky); ctx.stroke();
+          ctx.lineWidth = Math.max(0.7, w1 + r * 0.035);
+          ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+          ctx.strokeStyle = rgba(flesh, 0.98 * alpha);
+          ctx.lineWidth = Math.max(0.6, w0);
+          ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(kx, ky); ctx.stroke();
+          ctx.lineWidth = Math.max(0.5, w1);
+          ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
           // digits
-          ctx.lineWidth = Math.max(0.5, r * 0.035);
+          const dl = r * (lb.arm ? 0.09 : l.biped ? 0.2 : 0.14);
+          const tw = side * (SNY[i] >= 0 ? 1 : -1);
+          ctx.strokeStyle = rgba(claw, 0.95 * alpha);
+          ctx.lineWidth = Math.max(0.5, r * (lb.arm ? 0.022 : 0.04));
           ctx.beginPath();
-          for (let d = -1; d <= 1; d++) { ctx.moveTo(fx, fy); ctx.lineTo(fx + r * 0.12, fy + d * r * 0.07 + side * r * 0.03); }
+          for (let d = -1; d <= 1; d++) { ctx.moveTo(fx, fy); ctx.lineTo(fx + dl, fy + d * dl * 0.55 + tw * dl * 0.2); }
           ctx.stroke();
+          if (l.sickle && !lb.arm) {
+            // the killing claw, held clear of the ground
+            ctx.strokeStyle = rgba('#fff8e8', 0.98 * alpha);
+            ctx.lineWidth = Math.max(0.6, r * 0.045);
+            ctx.beginPath(); ctx.moveTo(fx + dl * 0.2, fy - tw * dl * 0.5); ctx.quadraticCurveTo(fx + dl * 1.5, fy - tw * dl * 1.3, fx + dl * 1.9, fy - tw * dl * 0.2); ctx.stroke();
+          }
+        }
+      }
+    } else {
+      ctx.strokeStyle = rgba(l.membrane, 0.9 * alpha);
+      for (let k = 0; k < n; k++) {
+        const u = 0.14 + (k / (n - 1)) * 0.7;
+        const i = Math.min(N, Math.round(u * N));
+        for (const side of [-1, 1]) {
+          const ph = gait + k * Math.PI * 0.55 + (side > 0 ? 0 : Math.PI);
+          const swing = Math.sin(ph) * (0.15 + 0.45 * Math.min(1, spd + 0.15));
+          const lift = Math.max(0, Math.cos(ph));
+          const hx = SX[i] + SNX[i] * SW[i] * 0.75 * side, hy = SY[i] + SNY[i] * SW[i] * 0.75 * side;
+          const kx = hx + SNX[i] * ll * 0.55 * side + swing * ll * 0.5, ky = hy + SNY[i] * ll * 0.55 * side;
+          const fx = kx + swing * ll * 0.45 + ll * 0.1, fy = ky + SNY[i] * ll * (0.4 - lift * 0.12) * side;
+          ctx.lineWidth = Math.max(0.6, r * 0.035);
+          ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
         }
       }
     }
   }
   // insect wings
-  if (l.wings) {
+  if (l.wings && l.feathers) {
+    // feathered wings: a fan of flight feathers on each arm
+    const flap = Math.sin(t * 7 + seed);
+    const wi = Math.min(N, Math.round(0.3 * N));
+    for (const side of [-1, 1]) {
+      const span = r * (1.5 + 0.2 * flap);
+      ctx.save();
+      ctx.translate(SX[wi], SY[wi]);
+      ctx.rotate(Math.atan2(SNY[wi] * side, SNX[wi] * side) - side * (0.1 + flap * 0.14));
+      for (let k = 7; k >= 0; k--) {
+        const u = k / 7;
+        const fl = span * (0.5 + 0.5 * u), fa = -side * (1.25 - u * 1.15);
+        ctx.save();
+        ctx.rotate(fa);
+        ctx.fillStyle = rgba(k % 2 ? l.membrane : l.glow, 0.92 * alpha);
+        ctx.strokeStyle = rgba(l.inner, 0.65 * alpha);
+        ctx.lineWidth = Math.max(0.4, r * 0.012);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(fl * 0.5, -fl * 0.1, fl, 0); ctx.quadraticCurveTo(fl * 0.5, fl * 0.1, 0, 0); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+  } else if (l.wings) {
     const flap = 0.75 + 0.25 * Math.sin(t * 38 + seed);
     for (const [u, sweep] of [[0.3, 0.25], [0.42, 0.45]] as const) {
       const i = Math.min(N, Math.round(u * N));
@@ -1126,7 +1304,18 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.save();
     ctx.translate(baseX, baseY);
     ctx.rotate(ang);
-    if (l.lobeFins && pi < 2) {
+    if (l.paddles) {
+      // a flipper: a stiff, bone-filled blade
+      const pl = fl * 1.9;
+      ctx.fillStyle = rgba(mixHex(l.inner, l.membrane, 0.35), 0.92 * alpha);
+      ctx.strokeStyle = rgba(l.membrane, 0.85 * alpha);
+      ctx.lineWidth = Math.max(0.6, r * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(0, -pl * 0.06);
+      ctx.quadraticCurveTo(pl * 0.6, -pl * 0.26, pl, -pl * 0.02);
+      ctx.quadraticCurveTo(pl * 0.6, pl * 0.16, 0, pl * 0.08);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (l.lobeFins && pi < 2) {
       // fleshy lobe: a muscular stalk with a fringe — the first limbs
       ctx.fillStyle = rgba(l.inner, 0.85 * alpha);
       ctx.strokeStyle = rgba(l.membrane, 0.85 * alpha);
@@ -1218,7 +1407,7 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     ctx.save();
     ctx.translate(SX[fi], SY[fi]);
     ctx.rotate(Math.atan2(SNY[fi], SNX[fi]) - Math.PI / 2);
-    ctx.fillStyle = rgba(l.glow, 0.32 * alpha);
+    ctx.fillStyle = rgba(l.glow, skin(0.32) * alpha);
     ctx.strokeStyle = rgba(l.membrane, 0.85 * alpha);
     ctx.lineWidth = Math.max(0.6, r * 0.03);
     ctx.beginPath();
@@ -1232,11 +1421,9 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
   }
 
   // body outline
-  ctx.beginPath();
-  ctx.moveTo(SX[0] + r * 0.12, SY[0]);
-  for (let i = 0; i <= N; i++) ctx.lineTo(SX[i] + SNX[i] * SW[i], SY[i] + SNY[i] * SW[i]);
-  for (let i = N; i >= 0; i--) ctx.lineTo(SX[i] - SNX[i] * SW[i], SY[i] - SNY[i] * SW[i]);
-  ctx.closePath();
+  bodyPath();
+  // out of the water the body is solid: hide and muscle, not a lit membrane
+  if (ground > 0.02) { ctx.fillStyle = rgba(mixHex(l.inner, l.membrane, 0.12), 0.94 * ground * alpha); ctx.fill(); }
   const { g, hx, hy } = bodyFill(ctx, l, r, o.angle, alpha);
   ctx.fillStyle = g;
   ctx.fill();
@@ -1272,7 +1459,7 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
     for (let i = 0; i <= N; i++) { if (i === 0) ctx.moveTo(SX[i], SY[i]); else ctx.lineTo(SX[i], SY[i]); }
     ctx.stroke();
   } else if (vert) {
-    drawVertebrateDetails(ctx, l, r, o, alpha, N, L);
+    drawVertebrateDetails(ctx, l, r, o, alpha, N, L, tailAng);
   } else {
     ctx.strokeStyle = rgba(l.membrane, 0.28 * alpha);
     ctx.lineWidth = Math.max(0.5, r * 0.018);
@@ -1381,11 +1568,11 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawO
   // eyes — small, glossy, set into the head (no cartoon pupils)
   const eyes = l.eyes || (l.eyespot ? 1 : 0);
   if (eyes) {
-    const er = r * (eyes >= 2 ? 0.13 : 0.075);
-    const ex = L / 2 - r * 0.24;
+    const er = r * (neck > 0 ? (eyes >= 2 ? 0.075 : 0.055) * (0.7 + hw * 0.6) : eyes >= 2 ? 0.13 : 0.075);
+    const ex = L / 2 - r * (neck > 0 ? 0.1 + hl * 1.1 : 0.24);
     for (const side of [-1, 1]) {
-      const ey = side * SW[1] * 0.55;
-      if (eyes >= 2) {
+      const ey = side * (neck > 0 ? hw * halfW * 0.6 : SW[1] * 0.55);
+      if (eyes >= 2 && neck <= 0) {
         ctx.globalCompositeOperation = 'lighter';
         drawGlow(ctx, l.glow, ex, ey, er * 2.4, 0.35 * alpha);
         ctx.globalCompositeOperation = 'source-over';
@@ -1455,6 +1642,60 @@ function drawFrond(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawOpt
   ctx.globalCompositeOperation = 'source-over';
 }
 
+/** A land plant from above: a rosette of fronds around a crown. Edible ones carry bright spore dots. */
+function drawPlant(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawOpts, alpha: number) {
+  const t = o.t, kind = l.plant || 'fern';
+  const lod = (o.detail ?? 1) >= 0.5;
+  const count = kind === 'cycad' ? 13 : kind === 'treefern' ? 11 : 8;
+  const pairs = lod ? (kind === 'cycad' ? 13 : 10) : 5;
+  const wk = kind === 'cycad' ? 0.15 : 0.23;
+  if (o.ground) {
+    ctx.fillStyle = rgba('#020c08', 0.24 * o.ground * alpha);
+    ctx.beginPath(); ctx.arc(r * 0.12, r * 0.16, r * 0.92, 0, TAU); ctx.fill();
+  }
+  const light = mixHex(l.membrane, '#ffffff', 0.25);
+  for (let ring = 0; ring < 2; ring++) {
+    const n = ring === 0 ? count : Math.round(count * 0.6);
+    const len = r * (ring === 0 ? 1.18 : 0.74);
+    for (let i = 0; i < n; i++) {
+      const a = o.seed * (ring + 1) + (i / n) * TAU + Math.sin(t * 0.9 + i * 1.7 + ring) * 0.045;
+      const fl = len * (0.86 + 0.14 * Math.sin(i * 2.7 + o.seed));
+      ctx.save();
+      ctx.rotate(a);
+      const g = ctx.createLinearGradient(0, 0, fl, 0);
+      g.addColorStop(0, rgba(ring === 0 ? l.inner : mixHex(l.inner, l.membrane, 0.5), 0.96 * alpha));
+      g.addColorStop(1, rgba(ring === 0 ? mixHex(l.inner, l.membrane, 0.7) : light, 0.96 * alpha));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      for (let q = 1; q <= pairs; q++) {
+        const u = q / (pairs + 1);
+        const x = u * fl, pl = fl * wk * Math.pow(Math.sin(Math.PI * (0.12 + 0.88 * u)), 0.7), pw = (fl / pairs) * 0.62;
+        for (const side of [-1, 1]) {
+          ctx.moveTo(x - pw * 0.5, 0);
+          ctx.quadraticCurveTo(x + pw * 0.1, side * pl * 0.6, x + pw * 0.75, side * pl);
+          ctx.quadraticCurveTo(x + pw * 0.7, side * pl * 0.35, x + pw * 0.5, 0);
+        }
+      }
+      ctx.fill();
+      ctx.strokeStyle = rgba(light, 0.6 * alpha);
+      ctx.lineWidth = Math.max(0.5, r * 0.022);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(fl, 0); ctx.stroke();
+      // ripe spore cases: the sign that this plant is food
+      if (ring === 1 && lod) {
+        ctx.fillStyle = rgba(l.glow, (0.75 + 0.25 * Math.sin(t * 2 + i)) * alpha);
+        for (let q = 2; q <= 4; q++) { ctx.beginPath(); ctx.arc(fl * q * 0.2, 0, r * 0.04, 0, TAU); ctx.fill(); }
+      }
+      ctx.restore();
+    }
+  }
+  const cr = r * (kind === 'fern' ? 0.1 : 0.2);
+  const g = ctx.createRadialGradient(-cr * 0.3, -cr * 0.35, cr * 0.1, 0, 0, cr);
+  g.addColorStop(0, rgba(kind === 'fern' ? light : '#e0b068', alpha));
+  g.addColorStop(1, rgba(kind === 'fern' ? l.inner : '#5a3518', alpha));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, cr, 0, TAU); ctx.fill();
+}
+
 function drawNautilus(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawOpts, alpha: number) {
   const t = o.t;
   // tentacles from the aperture (+x)
@@ -1511,8 +1752,11 @@ function drawNautilus(ctx: CanvasRenderingContext2D, l: Look, r: number, o: Draw
 }
 
 /** Fish-like details: scales, gill slits, dorsal ridge, jaws, head armour, electroreceptors. */
-function drawVertebrateDetails(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawOpts, alpha: number, N: number, L: number) {
+function drawVertebrateDetails(ctx: CanvasRenderingContext2D, l: Look, r: number, o: DrawOpts, alpha: number, N: number, L: number, tailAng: number) {
   const t = o.t;
+  const ground = o.ground || 0;
+  const skin = (a: number) => a + (1 - a) * 0.6 * ground;
+  const bone = mixHex(l.membrane, '#f4ead0', 0.55);
   // mottled countershading
   if (l.mottled) {
     ctx.fillStyle = rgba('#02060c', 0.22 * alpha);
@@ -1550,7 +1794,7 @@ function drawVertebrateDetails(ctx: CanvasRenderingContext2D, l: Look, r: number
   ctx.stroke();
   // gill slits
   const gi = Math.max(1, Math.round(N * 0.2));
-  ctx.strokeStyle = rgba('#02060c', 0.45 * alpha);
+  ctx.strokeStyle = rgba('#02060c', (l.legs && l.airSac && l.gills === false ? 0 : 0.45) * alpha);
   ctx.lineWidth = Math.max(0.6, r * 0.025);
   ctx.beginPath();
   for (const side of [-1, 1]) {
@@ -1609,7 +1853,7 @@ function drawVertebrateDetails(ctx: CanvasRenderingContext2D, l: Look, r: number
     const a0 = Math.round(N * 0.2), a1 = Math.round(N * 0.68);
     const h = r * (0.55 + 0.3 * l.sail);
     const sway = Math.sin(t * 1.4 + o.seed) * 0.12;
-    ctx.fillStyle = rgba(l.glow, 0.28 * alpha);
+    ctx.fillStyle = rgba(l.glow, skin(0.28) * alpha);
     ctx.strokeStyle = rgba(l.membrane, 0.9 * alpha);
     ctx.lineWidth = Math.max(0.6, r * 0.028);
     ctx.beginPath();
@@ -1665,6 +1909,110 @@ function drawVertebrateDetails(ctx: CanvasRenderingContext2D, l: Look, r: number
         const px = mx - k * r * 0.11, py = side * mw * (0.55 + k * 0.12);
         ctx.beginPath(); ctx.moveTo(px - r * 0.04, py); ctx.lineTo(px + r * 0.04, py); ctx.lineTo(px + r * 0.01, py + side * r * 0.1); ctx.closePath(); ctx.fill();
       }
+    }
+  }
+  // bone armour: rows of keeled scutes set in the skin, with a spike at every flank
+  if (l.osteoderms) {
+    const scute = mixHex(l.membrane, '#f4ead0', 0.3), keel = mixHex(l.inner, '#000000', 0.25);
+    ctx.lineWidth = Math.max(0.4, r * 0.014);
+    const s0 = Math.max(2, Math.round(N * 0.24));
+    for (let i = s0; i < N - 1; i++) {
+      ctx.fillStyle = rgba(bone, 0.92 * alpha);
+      ctx.strokeStyle = rgba(keel, 0.8 * alpha);
+      for (const side of [-1, 1]) {
+        const qx = SX[i] + SNX[i] * SW[i] * 0.96 * side, qy = SY[i] + SNY[i] * SW[i] * 0.96 * side;
+        const sl = Math.max(SW[i] * 0.34, r * 0.07);
+        ctx.beginPath();
+        ctx.moveTo(qx + sl * 0.42, qy);
+        ctx.lineTo(qx + SNX[i] * sl * side - sl * 0.3, qy + SNY[i] * sl * side);
+        ctx.lineTo(qx - sl * 0.42, qy);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      if (SW[i] < r * 0.12) continue;
+      ctx.fillStyle = rgba(scute, 0.5 * alpha);
+      for (const f of i % 2 ? [-0.5, 0, 0.5] : [-0.74, -0.25, 0.25, 0.74]) {
+        const qx = SX[i] + SNX[i] * SW[i] * f, qy = SY[i] + SNY[i] * SW[i] * f;
+        const sw = (L / N) * 0.36, shh = SW[i] * 0.2;
+        ctx.beginPath(); ctx.ellipse(qx, qy, sw, shh, 0, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(qx - sw * 0.7, qy); ctx.lineTo(qx + sw * 0.7, qy); ctx.stroke();
+      }
+    }
+  }
+  // dorsal plates: two staggered rows of bony blades, flushed with blood to warm in the sun
+  if (l.backPlates) {
+    const a0 = Math.round(N * 0.16), a1 = Math.round(N * 0.84);
+    const h = r * (0.26 + 0.1 * l.backPlates);
+    const flush = 0.5 + 0.5 * Math.sin(t * 1.1 + o.seed);
+    ctx.strokeStyle = rgba(l.inner, 0.85 * alpha);
+    ctx.lineWidth = Math.max(0.5, r * 0.02);
+    for (let i = a0; i <= a1; i++) {
+      const u = (i - a0) / Math.max(1, a1 - a0);
+      const side = i % 2 ? 1 : -1;
+      const hh = h * Math.pow(Math.sin(u * Math.PI * 0.92 + 0.12), 0.8);
+      const wd = (L / N) * 0.5;
+      const bx = SX[i] + SNX[i] * SW[i] * 0.08 * side, by = SY[i] + SNY[i] * SW[i] * 0.08 * side;
+      const tx = bx + SNX[i] * hh * side - hh * 0.4, ty = by + SNY[i] * hh * side;
+      ctx.fillStyle = rgba(mixHex(l.glow, l.membrane, 0.35 + flush * 0.25), skin(0.72) * alpha);
+      ctx.beginPath();
+      ctx.moveTo(bx + wd, by);
+      ctx.quadraticCurveTo(bx + wd * 0.9 + (tx - bx) * 0.6, by + (ty - by) * 0.6, tx, ty);
+      ctx.quadraticCurveTo(bx - wd * 0.9 + (tx - bx) * 0.6, by + (ty - by) * 0.6, bx - wd, by);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + (tx - bx) * 0.8, by + (ty - by) * 0.8); ctx.stroke();
+    }
+  }
+  // tail weapons
+  if (l.tailSpikes || l.tailClub) {
+    ctx.save();
+    ctx.translate(SX[N], SY[N]);
+    ctx.rotate(tailAng);
+    ctx.fillStyle = rgba(bone, 0.96 * alpha);
+    ctx.strokeStyle = rgba(l.inner, 0.85 * alpha);
+    ctx.lineWidth = Math.max(0.5, r * 0.022);
+    if (l.tailSpikes) {
+      for (const side of [-1, 1]) for (const [bx, len, back] of [[-r * 0.3, r * 0.46, 0.5], [-r * 0.08, r * 0.38, 0.9]] as const) {
+        ctx.beginPath();
+        ctx.moveTo(bx - r * 0.05, side * r * 0.03);
+        ctx.lineTo(bx + len * back * 0.5, side * len);
+        ctx.lineTo(bx + r * 0.06, side * r * 0.03);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
+    if (l.tailClub) {
+      const cg = ctx.createRadialGradient(-r * 0.02, -r * 0.06, r * 0.02, r * 0.04, 0, r * 0.26);
+      cg.addColorStop(0, rgba(bone, 0.98 * alpha));
+      cg.addColorStop(1, rgba(mixHex(bone, l.inner, 0.55), 0.98 * alpha));
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.14, -r * 0.05);
+      ctx.bezierCurveTo(-r * 0.06, -r * 0.24, r * 0.2, -r * 0.24, r * 0.24, -r * 0.04);
+      ctx.quadraticCurveTo(r * 0.16, 0, r * 0.24, r * 0.04);
+      ctx.bezierCurveTo(r * 0.2, r * 0.24, -r * 0.06, r * 0.24, -r * 0.14, r * 0.05);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // hollow crest sweeping back over the neck
+  if (l.crest) {
+    const cx0 = L / 2 - r * 0.2, cl = r * 0.95;
+    const sway = Math.sin(t * 1.2 + o.seed) * r * 0.03;
+    ctx.fillStyle = rgba(mixHex(l.glow, '#ffffff', 0.15), 0.95 * alpha);
+    ctx.strokeStyle = rgba(l.inner, 0.85 * alpha);
+    ctx.lineWidth = Math.max(0.5, r * 0.022);
+    ctx.beginPath();
+    ctx.moveTo(cx0 + r * 0.1, 0);
+    ctx.quadraticCurveTo(cx0 - cl * 0.3, -r * 0.1, cx0 - cl, sway);
+    ctx.quadraticCurveTo(cx0 - cl * 0.3, r * 0.1, cx0 + r * 0.1, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  // a crown of display plumes
+  if ((l.feathers || 0) >= 2) {
+    const cx0 = L / 2 - r * 0.42;
+    for (let k = -2; k <= 2; k++) {
+      const a = Math.PI + k * 0.24 + Math.sin(t * 2 + k + o.seed) * 0.05, fl = r * (0.42 - Math.abs(k) * 0.06);
+      ctx.strokeStyle = rgba(k % 2 ? l.glow : '#ffffff', 0.9 * alpha);
+      ctx.lineWidth = Math.max(0.5, r * 0.035);
+      ctx.beginPath(); ctx.moveTo(cx0, k * r * 0.03); ctx.lineTo(cx0 + Math.cos(a) * fl, k * r * 0.03 + Math.sin(a) * fl); ctx.stroke();
     }
   }
   // throat air sac — pulses as the lungs gulp air

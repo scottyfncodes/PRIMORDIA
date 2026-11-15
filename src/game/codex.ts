@@ -35,6 +35,14 @@ export const CLADES: Record<string, Clade> = {
   sarcopterygii: { key: 'sarcopterygii', name: 'Sarcopterygii', path: ['Chordata', 'Sarcopterygii'], blurb: 'Lobe-finned fish whose fleshy fins would become legs.' },
   reptilia: { key: 'reptilia', name: 'Sauropsida', path: ['Chordata', 'Sauropsida'], blurb: 'Scaly amniotes: lizards, crocodile kin and, one day, the dinosaurs.' },
   synapsida: { key: 'synapsida', name: 'Synapsida', path: ['Chordata', 'Synapsida'], blurb: 'Amniotes with a single opening behind the eye: sail-backs, tuskers, gorgons — and the ancestors of mammals.' },
+  theropoda: { key: 'theropoda', name: 'Theropoda', path: ['Chordata', 'Dinosauria', 'Theropoda'], blurb: 'Two-legged, hollow-boned dinosaurs: every great land predator of the age, and the line that leads to birds.' },
+  ornithischia: { key: 'ornithischia', name: 'Ornithischia', path: ['Chordata', 'Dinosauria', 'Ornithischia'], blurb: 'Beaked plant-eaters with a talent for ornament: plates, spikes, crests and clubs.' },
+  sauropoda: { key: 'sauropoda', name: 'Sauropoda', path: ['Chordata', 'Dinosauria', 'Sauropoda'], blurb: 'Long necks, long tails and pillar legs: the largest animals that have ever walked.' },
+  avialae: { key: 'avialae', name: 'Avialae', path: ['Chordata', 'Dinosauria', 'Avialae'], blurb: 'Feathered dinosaurs that took to the air. Their descendants will inherit the sky.' },
+  sauropterygia: { key: 'sauropterygia', name: 'Sauropterygia', path: ['Chordata', 'Sauropterygia'], blurb: 'Reptiles that returned to the sea and flew through it on four flippers.' },
+  ichthyosauria: { key: 'ichthyosauria', name: 'Ichthyosauria', path: ['Chordata', 'Ichthyosauria'], blurb: 'Sea reptiles reshaped by the water into the form of a fish.' },
+  ammonoidea: { key: 'ammonoidea', name: 'Ammonoidea', path: ['Animalia', 'Mollusca', 'Ammonoidea'], blurb: 'Coiled, chambered cephalopods in endless variety: the clocks by which the rocks are dated.' },
+  polypodiopsida: { key: 'polypodiopsida', name: 'Polypodiopsida', path: ['Plantae', 'Polypodiopsida'], blurb: 'Ferns grown into trees, unrolling new fronds from a crown of crosiers.' },
   cycadophyta: { key: 'cycadophyta', name: 'Cycadophyta', path: ['Plantae', 'Cycadophyta'], blurb: 'Seed plants with crowns of stiff fronds, the gardens of the reptile age.' },
   plantae: { key: 'plantae', name: 'Progymnospermae', path: ['Plantae', 'Progymnospermae'], blurb: 'The first true trees, raising wood toward an open sky.' },
 };
@@ -65,6 +73,11 @@ const SPECIES_CLADE: Record<string, string> = {
   cycad: 'cycadophyta',
   skink: 'reptilia', shieldback: 'reptilia', phytosaur: 'reptilia', glider: 'reptilia',
   grazer: 'synapsida', gorgon: 'synapsida',
+  treefern: 'polypodiopsida',
+  compy: 'theropoda', sickleclaw: 'theropoda', tyrant: 'theropoda', spino: 'theropoda',
+  crested: 'ornithischia', plated: 'ornithischia',
+  longneck: 'sauropoda', dawnbird: 'avialae',
+  paddler: 'sauropterygia', ichthy: 'ichthyosauria', ammonite: 'ammonoidea',
 };
 
 export function cladeOf(sp: SpeciesDef): Clade {
@@ -88,6 +101,7 @@ export function characteristics(sp: SpeciesDef): string[] {
   add(l.body === 'worm', 'Segmented body with jaws');
   add(l.body === 'frond', 'Feathered frond');
   add(l.body === 'nautilus', 'Chambered shell');
+  add(l.body === 'plant', l.plant === 'cycad' ? 'Crown of stiff fronds around a cone' : 'Rosette of fronds');
   add(l.nucleoid, 'Free DNA, no nucleus');
   add(l.nucleus, 'True nucleus');
   add(l.flagella, (l.flagella || 0) > 1 ? 'Paired flagella' : 'Whip-like flagellum');
@@ -121,6 +135,16 @@ export function characteristics(sp: SpeciesDef): string[] {
   add(l.horns, 'Horns');
   add(l.serrated, 'Serrated teeth');
   add(l.frill, 'Neck frill');
+  add(l.biped, 'Walks on two legs');
+  add(l.feathers, (l.feathers || 0) > 1 ? 'Display plumage' : 'Downy feathers');
+  add(l.backPlates, 'Dorsal plates');
+  add(l.tailSpikes, 'Tail spikes');
+  add(l.tailClub, 'Tail club');
+  add(l.osteoderms, 'Bone armour');
+  add((l.neck || 0) > 0.5, 'Long neck');
+  add(l.crest, 'Hollow crest');
+  add(l.sickle, 'Killing claw');
+  add(l.paddles, 'Flippers');
   for (const d of sp.defenses) add(true, d === 'spiny' ? 'Spiny defence' : d === 'shelled' ? 'Hard shell' : 'Toxic to eat');
   return [...new Set(out)];
 }

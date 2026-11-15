@@ -15,6 +15,8 @@ import type { Look } from './look';
  *   → IV  a body plan: a hollow ball of cells folds in on itself (gastrulation) and segments
  *   → V   a backbone: a notochord runs head to tail and vertebrae ossify along it
  *   → VI  limbs: four buds push out of the body as light falls from the surface
+ *   → VII the amniotic egg: a shell closes over the cyst, and cracks from within
+ *   → VIII feathers: filaments push through the skin and open into a crown of plumes
  * At META_SWAP the leap is applied (the world may rescale behind the flash).
  * Phase B (META_SWAP → META_DUR): the cyst shatters and the new form unfolds.
  */
@@ -60,6 +62,8 @@ export function drawMetamorph(ctx: CanvasRenderingContext2D, p: Player, era: num
     case 4: gastrulation(ctx, x, y, r, u, t, z, old, p.angle); break;
     case 5: notochord(ctx, x, y, r, u, t, z, p.angle); break;
     case 6: limbBuds(ctx, x, y, r, u, t, z, old, p.angle); break;
+    case 7: egg(ctx, x, y, r, u, z, p.angle); break;
+    case 8: plumage(ctx, x, y, r, u, t, z, old); break;
   }
 
   // the cyst wall: drawn in as a sweeping arc, then a breathing translucent sphere
@@ -267,4 +271,86 @@ function limbBuds(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + Math.cos(na) * len, by + Math.sin(na) * len); ctx.stroke();
   }
   void z;
+}
+
+function egg(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, u: number, z: number, ang: number) {
+  // a shell closes over the body: a private pond that can be laid on dry ground
+  const k = easeInOut(seg(u, 0.12, 0.55));
+  if (k <= 0) return;
+  const rx = r * 1.42, ry = r * 1.12;
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(ang);
+  const shell = () => {
+    ctx.beginPath();
+    for (let i = 0; i <= 44; i++) {
+      const a = (i / 44) * TAU;
+      // blunt behind, narrower ahead
+      const px = Math.cos(a) * rx * (1 + 0.1 * Math.cos(a)), py = Math.sin(a) * ry * (1 - 0.12 * Math.cos(a));
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  };
+  const g = ctx.createRadialGradient(-rx * 0.3, -ry * 0.45, r * 0.1, 0, 0, rx * 1.15);
+  g.addColorStop(0, rgba('#fffaf0', 0.95 * k));
+  g.addColorStop(0.55, rgba('#eadcc0', 0.9 * k));
+  g.addColorStop(1, rgba('#8c7658', 0.92 * k));
+  shell();
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = rgba('#fff6e0', 0.8 * k);
+  ctx.lineWidth = Math.max(1 / z, r * 0.03);
+  ctx.stroke();
+  ctx.fillStyle = rgba('#6e4e2e', 0.3 * k);
+  for (let i = 0; i < 22; i++) {
+    const a = i * 2.39996, d = Math.sqrt((i + 0.5) / 22) * 0.86;
+    ctx.beginPath(); ctx.ellipse(Math.cos(a) * rx * d, Math.sin(a) * ry * d, r * (0.03 + (i % 3) * 0.018), r * 0.03, a, 0, TAU); ctx.fill();
+  }
+  // it cracks from within: light through every seam
+  const c = seg(u, 0.6, 0.97);
+  if (c > 0) {
+    ctx.save();
+    shell(); ctx.clip();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineJoin = 'miter';
+    for (const [wd, col, a] of [[0.16, '#ffd98a', 0.35], [0.045, '#fffdf0', 1]] as const) {
+      ctx.strokeStyle = rgba(col, a * Math.min(1, c * 3));
+      ctx.lineWidth = Math.max(1.2 / z, r * wd);
+      ctx.beginPath();
+      for (let q = 0; q < 6; q++) {
+        let a0 = q * 1.07 + 0.4, px = 0, py = 0;
+        ctx.moveTo(px, py);
+        for (let j = 1; j <= 5; j++) {
+          if (j / 5 > c * 1.15) break;
+          a0 += ((q * 7 + j * 13) % 5 - 2) * 0.32;
+          px += Math.cos(a0) * rx * 0.24; py += Math.sin(a0) * ry * 0.24;
+          ctx.lineTo(px, py);
+        }
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function plumage(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, u: number, t: number, z: number, l: Look) {
+  // filaments push out through the skin and open into plumes
+  const k = easeInOut(seg(u, 0.18, 0.9));
+  if (k <= 0) return;
+  const n = 20;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU + t * 0.12 + Math.sin(t * 1.3 + i) * 0.03;
+    const open = clamp(k * 1.4 - (i % 4) * 0.1, 0, 1);
+    if (open <= 0) continue;
+    const len = r * (0.35 + 0.95 * open) * (0.82 + 0.18 * Math.sin(i * 2.3)), wd = len * 0.17 * open;
+    ctx.save();
+    ctx.translate(x + Math.cos(a) * r * 0.78, y + Math.sin(a) * r * 0.78);
+    ctx.rotate(a);
+    ctx.fillStyle = rgba(i % 2 ? l.glow : '#ffe9b0', 0.78 * open);
+    ctx.strokeStyle = rgba('#ffffff', 0.7 * open);
+    ctx.lineWidth = Math.max(0.8 / z, r * 0.016);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(len * 0.5, -wd, len, 0); ctx.quadraticCurveTo(len * 0.5, wd, 0, 0); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(len * 0.94, 0); ctx.stroke();
+    ctx.restore();
+  }
 }

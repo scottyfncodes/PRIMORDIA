@@ -1,14 +1,15 @@
 import { Game, type InputState } from '../src/game/game';
-import type { AbilityId } from '../src/game/traits';
+import { isEligible, TRAIT_BY_ID, type AbilityId } from '../src/game/traits';
+import { formFor } from '../src/game/eras';
 import type { Organism } from '../src/sim/entities';
 
 export type Strategy = 'predator' | 'defender' | 'opportunist' | 'phototroph' | 'random';
 
 const PREF: Record<Strategy, string[]> = {
-  predator: ['flagellum', 'pseudopods', 'sensory', 'toxin', 'mitochondria', 'tentacles', 'lure', 'colony', 'claws', 'eyes', 'fins', 'jaws', 'muscle', 'electro', 'tailpower', 'tongue', 'ears'],
-  defender: ['membrane', 'cilia', 'spines', 'vacuole', 'colony', 'mitochondria', 'toxin', 'carapace', 'ink', 'lateral', 'scales', 'camo', 'shoal', 'skin', 'egg', 'lungs'],
-  opportunist: ['cilia', 'pseudopods', 'gullet', 'mitochondria', 'sensory', 'colony', 'fins', 'filter', 'lateral', 'lobes', 'bladder', 'shoal', 'limbs', 'lungs', 'tongue'],
-  phototroph: ['photosynthesis', 'membrane', 'cilia', 'vacuole', 'symbiosis', 'colony', 'lure', 'fronds', 'filter', 'ink', 'bladder', 'camo', 'scales', 'bask', 'lungs', 'limbs'],
+  predator: ['flagellum', 'pseudopods', 'sensory', 'toxin', 'mitochondria', 'tentacles', 'lure', 'colony', 'claws', 'eyes', 'fins', 'jaws', 'muscle', 'electro', 'tailpower', 'tongue', 'ears', 'serrated', 'stride', 'warmblood', 'sickle', 'roar', 'hollow', 'feathers'],
+  defender: ['membrane', 'cilia', 'spines', 'vacuole', 'colony', 'mitochondria', 'toxin', 'carapace', 'ink', 'lateral', 'scales', 'camo', 'shoal', 'skin', 'egg', 'lungs', 'horns', 'frill', 'nesting', 'osteoderms', 'club', 'roar'],
+  opportunist: ['cilia', 'pseudopods', 'gullet', 'mitochondria', 'sensory', 'colony', 'fins', 'filter', 'lateral', 'lobes', 'bladder', 'shoal', 'limbs', 'lungs', 'tongue', 'stride', 'scent', 'warmblood', 'hollow', 'feathers', 'gizzard', 'longneck'],
+  phototroph: ['photosynthesis', 'membrane', 'cilia', 'vacuole', 'symbiosis', 'colony', 'lure', 'fronds', 'filter', 'ink', 'bladder', 'camo', 'scales', 'bask', 'lungs', 'limbs', 'sail', 'nesting', 'frill', 'dplates', 'longneck', 'gizzard', 'roar'],
   random: [],
 };
 
@@ -18,12 +19,20 @@ export interface BotResult {
 }
 
 /** Simple autopilot used for balance & regression testing. */
-export function runBot(strategy: Strategy, maxSeconds: number, seed = 1): BotResult {
+export function runBot(strategy: Strategy, maxSeconds: number, seed = 1, startEra = 1): BotResult {
   let s = seed;
   Math.random = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
   const g = new Game();
   g.viewR = 260;
   g.newRun();
+  // late-era balance runs: leap straight to an era with the mutations a lineage would have by then
+  if (startEra > 1 && strategy !== 'random') {
+    for (let e = 2; e <= startEra; e++) {
+      const p = g.player;
+      for (const id of PREF[strategy]) { if (p.mutationCount >= p.era.mutationsToLeap) break; const t = TRAIT_BY_ID[id]; if (t && isEligible(t, p.traits, p.eraIndex)) p.addTrait(id); }
+      g.state = 'leap'; g.pendingLeapForm = formFor(e, strategy); g.leapOptions = [g.pendingLeapForm]; g.confirmLeap();
+    }
+  }
   const input: InputState = { mx: 0, my: 0, burst: false, abilities: {} };
   const dt = 1 / 30;
   let firstMutation = -1, era2 = -1, era3 = -1, era4 = -1, era5 = -1, era6 = -1, nanSeen = false;
@@ -75,7 +84,7 @@ export function runBot(strategy: Strategy, maxSeconds: number, seed = 1): BotRes
     input.mx = mx / l; input.my = my / l;
     input.burst = threatClose && p.energy > 30;
     const ab: Partial<Record<AbilityId, boolean>> = {};
-    if (threatClose) { ab.harden = true; ab.toxin = true; ab.ink = true; }
+    if (threatClose) { ab.harden = true; ab.toxin = true; ab.ink = true; ab.roar = true; }
     ab.tongue = Math.random() < 0.05;
     if (best && 'sp' in best && Math.hypot(best.x - p.x, best.y - p.y) < p.r * 4) ab.strike = Math.random() < 0.1;
     if (best && 'sp' in best) ab.engulf = Math.random() < 0.05;

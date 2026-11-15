@@ -5,7 +5,7 @@ import type { Look } from '../render/look';
  * AND the organism Look (visuals) at every level, so evolution is always
  * both visible and functional.
  */
-export type AbilityId = 'engulf' | 'harden' | 'pulse' | 'toxin' | 'strike' | 'ink' | 'tongue';
+export type AbilityId = 'engulf' | 'harden' | 'pulse' | 'toxin' | 'strike' | 'ink' | 'tongue' | 'roar';
 export type Archetype = 'predator' | 'defender' | 'opportunist' | 'phototroph';
 export type TraitCategory = 'Locomotion' | 'Feeding' | 'Defense' | 'Senses' | 'Metabolism' | 'Colonial';
 
@@ -674,6 +674,107 @@ export const TRAITS: TraitDef[] = [
     apply: (s, lv) => { s.regen *= 1.4; s.maxHp *= 1.1; s.metabolism *= lv >= 2 ? 1.1 : 1.05; if (lv >= 2) s.extraLives += 1; },
     look: (l) => { l.eggs = true; },
   }),
+  // ───────────── ERA VIII ─────────────
+  T({
+    id: 'feathers', name: 'Feathers', icon: '❧', category: 'Metabolism', era: 8,
+    bio: 'Scales fray into filaments, and filaments into down. A coat that holds your own heat in, whatever the weather.',
+    levels: [
+      { name: 'Downy Coat', cost: 480, pros: ['−12% metabolic drain', 'No penalty in darkness or cold'], cons: ['Easier for hunters to spot (+8%)'] },
+      { name: 'Display Plumes', cost: 580, pros: ['Hunters often break off the chase (+25% deterrence)', 'Burst 20% stronger'], cons: ['Easier for hunters to spot (+12%)'] },
+    ],
+    archetype: { opportunist: 2, predator: 1 },
+    apply: (s, lv) => { s.metabolism *= 0.88; s.darkPenalty = 1; s.detectability *= lv >= 2 ? 1.2 : 1.08; if (lv >= 2) { s.predatorDeter = Math.min(0.9, s.predatorDeter + 0.25); s.burstPower *= 1.2; } },
+    look: (l, lv) => { l.feathers = Math.max(l.feathers || 0, lv); },
+  }),
+  T({
+    id: 'sickle', name: 'Killing Claw', icon: '☽', category: 'Feeding', era: 8,
+    bio: 'One toe on each foot lifts clear of the ground and grows into a hooked blade. You do not bite prey down: you ride it down.',
+    levels: [
+      { name: 'Killing Claw', cost: 500, pros: ['STRIKE ability (if you lack one)', 'Strikes deal +50% damage', 'Seize larger prey'], cons: ['+6% metabolism'] },
+      { name: 'Pounce', cost: 600, pros: ['Strikes deal +40% more damage', 'Sharper turning'], cons: ['+6% metabolism'] },
+    ],
+    archetype: { predator: 3 },
+    ability: 'strike',
+    apply: (s, lv) => { if (!s.abilities.includes('strike')) s.abilities.push('strike'); s.strikeDamage *= lv >= 2 ? 2.1 : 1.5; s.strikeRatio += 0.15; s.metabolism *= lv >= 2 ? 1.12 : 1.06; if (lv >= 2) s.turn *= 1.2; },
+    look: (l) => { l.sickle = true; },
+  }),
+  T({
+    id: 'club', name: 'Tail Club', icon: '⚈', category: 'Defense', era: 8,
+    bio: 'The last vertebrae of the tail fuse inside a knob of solid bone. Swung at knee height, it breaks legs.',
+    levels: [
+      { name: 'Tail Club', cost: 470, pros: ['Anything that bites you is struck hard', 'Hunters think twice (+30% deterrence)'], cons: ['−4% top speed'] },
+      { name: 'Bone Hammer', cost: 570, pros: ['The blow lands far harder', '−12% damage taken'], cons: ['−4% top speed'] },
+    ],
+    archetype: { defender: 3 },
+    apply: (s, lv) => { s.contactDamage = Math.max(s.contactDamage, lv >= 2 ? 150 : 100); s.predatorDeter = Math.min(0.9, s.predatorDeter + 0.3); s.speed *= lv >= 2 ? 0.92 : 0.96; if (lv >= 2) s.damageTaken *= 0.88; },
+    look: (l) => { l.tailClub = true; },
+  }),
+  T({
+    id: 'osteoderms', name: 'Bone Armour', icon: '⬣', category: 'Defense', era: 8,
+    bio: 'Plates of bone grow inside the skin itself, row upon row, until the back is a pavement no tooth can find a seam in.',
+    levels: [
+      { name: 'Bone Armour', cost: 460, pros: ['−20% damage taken', '+15% integrity'], cons: ['−6% top speed'] },
+      { name: 'Living Fortress', cost: 560, pros: ['−15% more damage taken', 'Spines and shells no longer hurt you'], cons: ['−5% top speed'] },
+    ],
+    archetype: { defender: 2, phototroph: 0.5 },
+    excludes: ['hollow'],
+    apply: (s, lv) => { s.damageTaken *= lv >= 2 ? 0.68 : 0.8; s.maxHp *= 1.15; s.speed *= lv >= 2 ? 0.89 : 0.94; if (lv >= 2) s.spinyImmune = true; },
+    look: (l) => { l.osteoderms = true; },
+  }),
+  T({
+    id: 'hollow', name: 'Hollow Bones', icon: '◌', category: 'Locomotion', era: 8,
+    bio: 'Bones struck through with air, braced inside like the wing of a bridge. Half the weight, nearly all of the strength.',
+    levels: [
+      { name: 'Hollow Bones', cost: 480, pros: ['+14% top speed', 'Sharper turning', 'Burst costs 25% less'], cons: ['−12% integrity'] },
+    ],
+    archetype: { opportunist: 2, predator: 1 },
+    excludes: ['osteoderms'],
+    apply: (s) => { s.speed *= 1.14; s.turn *= 1.2; s.burstCost *= 0.75; s.maxHp *= 0.88; },
+    look: (l) => { l.elong += 0.1; },
+  }),
+  T({
+    id: 'dplates', name: 'Dorsal Plates', icon: '◮', category: 'Metabolism', era: 8,
+    bio: 'Tall blades of bone along the spine, wrapped in skin thick with blood vessels. Turned to the sun they warm you; flushed red they warn.',
+    levels: [
+      { name: 'Dorsal Plates', cost: 470, pros: ['Bask in the sun 70% faster', 'Draw energy from light anywhere', 'Hunters think twice (+20% deterrence)'], cons: ['Easier for hunters to spot (+10%)'] },
+      { name: 'Great Plates', cost: 570, pros: ['Bask in the sun twice as fast', '−10% metabolic drain'], cons: ['Easier for hunters to spot (+10%)'] },
+    ],
+    archetype: { phototroph: 3, defender: 0.5 },
+    apply: (s, lv) => { s.bask = Math.max(s.bask, 6) * (lv >= 2 ? 2 : 1.7); s.photo += 0.3; s.predatorDeter = Math.min(0.9, s.predatorDeter + 0.2); s.detectability *= lv >= 2 ? 1.2 : 1.1; if (lv >= 2) s.metabolism *= 0.9; },
+    look: (l, lv) => { l.backPlates = Math.max(l.backPlates || 0, lv); },
+  }),
+  T({
+    id: 'roar', name: 'Thunder Call', icon: '≋', category: 'Senses', era: 8,
+    bio: 'A chest like a bellows and a throat like a horn. The sound is felt in the ground before it is heard.',
+    levels: [
+      { name: 'Thunder Call', cost: 490, pros: ['ROAR ability: hunters up to 1.5× your size turn and run', 'Small prey freezes in fear'], cons: ['+5% metabolism'] },
+      { name: 'Resonating Crest', cost: 590, pros: ['Roar carries further', 'Routs hunters up to twice your size'], cons: ['+4% metabolism'] },
+    ],
+    archetype: { predator: 1, defender: 1, phototroph: 0.5 },
+    ability: 'roar',
+    apply: (s, lv) => { if (!s.abilities.includes('roar')) s.abilities.push('roar'); s.metabolism *= lv >= 2 ? 1.09 : 1.05; },
+    look: (l, lv) => { if (lv >= 2) l.crest = true; },
+  }),
+  T({
+    id: 'longneck', name: 'Long Neck', icon: '↟', category: 'Feeding', era: 8,
+    bio: 'A dozen stretched vertebrae carry a small head to food that nothing else can reach, without taking a single step.',
+    levels: [
+      { name: 'Long Neck', cost: 460, pros: ['Much wider nutrient pull', '+20% energy from nutrients', 'See further'], cons: ['Slower to turn (−15%)'] },
+    ],
+    archetype: { phototroph: 1.5, opportunist: 1 },
+    apply: (s) => { s.magnet += 1.3; s.nutrientMult *= 1.2; s.vision += 0.15; s.turn *= 0.85; },
+    look: (l) => { l.neck = Math.max(l.neck || 0, 0.6); l.head = Math.min(l.head ?? 0.5, 0.4); },
+  }),
+  T({
+    id: 'gizzard', name: 'Gizzard Stones', icon: '◍', category: 'Feeding', era: 8,
+    bio: 'Swallowed pebbles tumble in a muscular pouch and grind whatever arrives: fern, bone, shell. Nothing eaten is wasted.',
+    levels: [
+      { name: 'Gizzard Stones', cost: 450, pros: ['+22% energy from everything you eat', 'Crack shelled prey'], cons: ['−3% top speed'] },
+    ],
+    archetype: { opportunist: 2, phototroph: 1 },
+    apply: (s) => { s.digestion *= 1.22; s.shellBreaker = true; s.speed *= 0.97; },
+    look: (l) => { l.mottled = true; },
+  }),
 ];
 
 export const TRAIT_BY_ID: Record<string, TraitDef> = Object.fromEntries(TRAITS.map((t) => [t.id, t]));
@@ -764,4 +865,5 @@ export const ABILITY_INFO: Record<AbilityId, { name: string; icon: string; coold
   strike: { name: 'Strike', icon: '❯', cooldown: 3.6, energy: 5 },
   ink: { name: 'Ink', icon: '●', cooldown: 11, energy: 6 },
   tongue: { name: 'Tongue', icon: '⟼', cooldown: 2.2, energy: 3 },
+  roar: { name: 'Roar', icon: '≋', cooldown: 13, energy: 7 },
 };

@@ -133,7 +133,7 @@ export class World {
     o.thinkT = Math.random() * 0.2;
     o.wanderA = rand(0, TAU);
     o.satiety = rand(0, 4);
-    o.huntT = 0; o.restT = 0; o.windupT = 0; o.lungeT = 0; o.lungeCd = rand(0.5, 2);
+    o.huntT = 0; o.restT = 0; o.fearT = 0; o.windupT = 0; o.lungeT = 0; o.lungeCd = rand(0.5, 2);
     o.stunT = 0; o.biteCd = 0; o.hurtT = 0; o.revealT = 0;
     o.anchorX = x; o.anchorY = y;
     o.dyingT = -1; o.divideT = -1; o.eater = null; o.eatenByPlayer = false; o.onScreen = false;
@@ -179,9 +179,16 @@ export class World {
   }
 
   private ringPoint(minR: number, maxR: number) {
-    const a = rand(0, TAU);
-    const d = rand(minR, maxR);
-    return { x: clamp(this.cx + Math.cos(a) * d, 40, this.env.w - 40), y: clamp(this.cy + Math.sin(a) * d, 40, this.env.h - 40) };
+    // prefer a point inside the world: clamping every miss onto the boundary used to draw a line of food along the edge
+    let x = 0, y = 0;
+    for (let k = 0; k < 6; k++) {
+      const a = rand(0, TAU);
+      const d = rand(minR, maxR);
+      x = this.cx + Math.cos(a) * d; y = this.cy + Math.sin(a) * d;
+      if (x > 40 && x < this.env.w - 40 && y > 40 && y < this.env.h - 40) return { x, y };
+    }
+    const m = Math.min(this.env.w, this.env.h) * 0.04;
+    return { x: clamp(x, 40 + rand(0, m), this.env.w - 40 - rand(0, m)), y: clamp(y, 40 + rand(0, m), this.env.h - 40 - rand(0, m)) };
   }
 
   private insideRock(x: number, y: number, pad: number) {
@@ -532,6 +539,8 @@ export class World {
   private think(o: Organism, p: PlayerLike) {
     const sp = o.sp;
     if (o.restT > 0) { o.restT -= 0.15; }
+    // routed: nothing else matters until the fright wears off
+    if (o.fearT > 0) { o.fearT -= 0.15; o.mode = 'flee'; o.target = null; o.targetIsPlayer = false; return; }
     const sight = o.r * sp.sight;
     const near = this.grid.query(o.x, o.y, sight, this.tmp, this.maxOrgR);
 

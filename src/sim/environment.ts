@@ -29,7 +29,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   thicket: { id: 'thicket', name: 'Biofilm Thicket', blurb: 'Tangled mats of ancient film. Dense, slow, full of hiding prey.', deep: '#082a26', near: '#1c5a43', light: 0.45, current: 0.15, nutrients: 1.25, darkness: 0.1 },
   vents: { id: 'vents', name: 'Thermal Vents', blurb: 'Mineral heat boils from the floor. Rich food, scalding danger.', deep: '#1c0d14', near: '#5a2a1e', light: 0.25, current: 0.35, nutrients: 1.6, darkness: 0.3 },
   abyss: { id: 'abyss', name: 'The Abyssal Dark', blurb: 'Lightless and quiet. Rare luminous life drifts here, and so do hunters.', deep: '#02040c', near: '#0b1430', light: 0.04, current: 0.25, nutrients: 0.6, darkness: 0.82 },
-  land: { id: 'land', name: 'The First Shores', blurb: 'Bare rock and moss under an open sky. Nothing with a backbone has ever walked here.', deep: '#2a3a24', near: '#4a6a3a', light: 1, current: 0, nutrients: 1.1, darkness: 0 },
+  land: { id: 'land', name: 'The First Shores', blurb: 'Bare rock and moss under an open sky. Nothing with a backbone has ever walked here.', deep: '#2a3a24', near: '#4a6a3a', light: 1, current: 0, nutrients: 1.3, darkness: 0 },
 };
 
 const SEEDS: { x: number; y: number; z: ZoneId }[] = [
@@ -60,6 +60,8 @@ export class Environment {
   land = false;
   /** Era VII: how far (base units) the land has pushed south into the sea. */
   inland = 0;
+  /** Era VIII: rain has filled a basin far inland: a freshwater lake in the middle of the continent. */
+  lake = false;
   rocks: Rock[] = [];
   vents: Vent[] = [];
   strands: Strand[] = [];
@@ -135,9 +137,22 @@ export class Environment {
   islandRadius(angle: number): number {
     return this.island[2] * (1 + 0.12 * Math.sin(angle * 3 + 1) + 0.07 * Math.sin(angle * 7));
   }
+  /** The Great Lake (Era VIII). Returns [x, y, radius] in world units. */
+  get lakeBasin(): [number, number, number] { return [2100 * this.scale, 900 * this.scale, 520 * this.scale]; }
+  lakeRadius(angle: number): number {
+    return this.lakeBasin[2] * (1 + 0.14 * Math.sin(angle * 2 + 0.7) + 0.08 * Math.sin(angle * 5 + 2) + 0.04 * Math.sin(angle * 9));
+  }
+  inLake(x: number, y: number): boolean {
+    if (!this.lake) return false;
+    const [lx, ly, lr] = this.lakeBasin;
+    const dx = x - lx, dy = y - ly;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > lr * lr * 1.6) return false;
+    return Math.sqrt(d2) < this.lakeRadius(Math.atan2(dy, dx));
+  }
   isLand(x: number, y: number): boolean {
     if (!this.land) return false;
-    if (y < this.coastY(x)) return true;
+    if (y < this.coastY(x)) return !this.inLake(x, y);
     const [ix, iy] = this.island;
     const dx = x - ix, dy = y - iy;
     const d2 = dx * dx + dy * dy;
@@ -149,6 +164,7 @@ export class Environment {
   /** Voronoi zone lookup. */
   zoneAt(x: number, y: number): ZoneId {
     if (this.land && this.isLand(x, y)) return 'land';
+    if (this.inLake(x, y)) return 'shallows';
     return this.baseZoneAt(x / this.scale, y / this.scale);
   }
 

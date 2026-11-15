@@ -35,6 +35,8 @@ export class Organism implements Body {
   satiety = 0;
   huntT = 0;
   restT = 0;
+  /** routed (by a roar): keeps running from (fleeX, fleeY) until this runs out */
+  fearT = 0;
   windupT = 0;
   lungeT = 0;
   lungeCd = 0;

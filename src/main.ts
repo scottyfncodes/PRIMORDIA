@@ -7,6 +7,10 @@ import { UI } from './ui/ui';
 import { RunStore, snapshot } from './game/save';
 import { PLAYER_SPAWN } from './sim/environment';
 import { TRAIT_BY_ID } from './game/traits';
+import { FORMS, formFor } from './game/eras';
+import { SPECIES } from './sim/species';
+import { drawOrganism } from './render/organismDraw';
+import { buildPlayerLook } from './game/player';
 import { buzz } from './engine/haptics';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -168,6 +172,7 @@ function handleEvents() {
         if (e.id === 'engulf') fx.ring(e.x, e.y, p.r, p.r * 1.6, p.look.membrane, 0.3);
         if (e.id === 'strike') fx.bubbles(e.x, e.y, 8, p.r * 0.5);
         if (e.id === 'ink') fx.bubbles(e.x, e.y, 10, p.r * 0.6);
+        if (e.id === 'roar') { fx.ring(e.x, e.y, p.r * 1.2, p.r * 12, '#ffe2b0', 0.9); fx.ring(e.x, e.y, p.r, p.r * 8, '#ffffff', 0.6); fx.ring(e.x, e.y, p.r * 0.8, p.r * 5, '#ffb070', 0.45); renderer.cam.shake = Math.max(renderer.cam.shake, 0.7); if (haptics) buzz([20, 30, 90]); }
         audio.ability(e.id);
         break;
       case 'mutation': {
@@ -332,7 +337,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => { autosave(); game.progress.flush(); });
 
 // expose for automated testing / debugging
-(window as unknown as { __primordia: unknown }).__primordia = { game, renderer, ui, input, startRun };
+(window as unknown as { __primordia: unknown }).__primordia = { game, renderer, ui, input, startRun, formFor, FORMS, SPECIES, drawOrganism, buildPlayerLook };
 
 toTitle();
 renderer.snapCamera(game);

@@ -68,6 +68,9 @@ export interface RunStats {
 
 /** Era VII: base-unit distance the coastline moves south as the land rises. */
 const INLAND_VII = 900;
+/** Era VIII: the land is a continent now, with a lake at its heart. */
+const INLAND_VIII = 1900;
+const inlandFor = (era: number) => (era >= 8 ? INLAND_VIII : era >= 7 ? INLAND_VII : 0);
 /** Gentle Tides assist: damage and metabolic drain multipliers. */
 const ASSIST_DAMAGE = 0.6;
 const ASSIST_DRAIN = 0.8;
@@ -91,6 +94,11 @@ export const MILESTONES: Record<string, { name: string; desc: string; dna: numbe
   era4: { name: 'The Cambrian Explosion', desc: 'Became an early animal (Era IV).', dna: 0 },
   era5: { name: 'Age of Fishes', desc: 'Grew a backbone (Era V).', dna: 0 },
   era6: { name: 'First Steps', desc: 'Reached the Land Transition (Era VI).', dna: 0 },
+  era7: { name: 'The Dry World', desc: 'Became a reptile, free of the water (Era VII).', dna: 0 },
+  era8: { name: 'Thunder on the Plain', desc: 'Became a dinosaur (Era VIII).', dna: 0 },
+  kingslayer: { name: 'Kingslayer', desc: 'Brought down a Tyrant King.', dna: 120 },
+  giantfall: { name: 'The Fall of a Giant', desc: 'Wore down a Longneck Titan.', dna: 90 },
+  rout: { name: 'The Ground Shook', desc: 'Sent three hunters running with a single roar.', dna: 40 },
   landfall: { name: 'Landfall', desc: 'Crawled out of the sea onto dry land.', dna: 40 },
   walker: { name: 'A Life Ashore', desc: 'Spent 60 seconds on land in one life.', dna: 40 },
   clutch: { name: 'The Line Goes On', desc: 'Hatched from your own clutch after dying.', dna: 20 },
@@ -157,7 +165,8 @@ export class Game {
     const era = ERAS[s.player.eraIndex - 1];
     this.env.setScale(era.worldScale);
     this.env.land = s.player.eraIndex >= 6;
-    this.env.inland = s.player.eraIndex >= 7 ? INLAND_VII : 0;
+    this.env.inland = inlandFor(s.player.eraIndex);
+    this.env.lake = s.player.eraIndex >= 8;
     this.player.reset(s.player.x, s.player.y);
     this.run = newRunStats();
     restoreInto(this, s);
@@ -186,6 +195,7 @@ export class Game {
     this.env.setScale(1);
     this.env.land = false;
     this.env.inland = 0;
+    this.env.lake = false;
     this.player.reset(PLAYER_SPAWN.x + rand(-80, 80), PLAYER_SPAWN.y + rand(-80, 80));
     this.world.reset(ERAS[0]);
     this.player.form = formFor(1, 'opportunist');
@@ -233,6 +243,7 @@ export class Game {
     this.env.setScale(1);
     this.env.land = false;
     this.env.inland = 0;
+    this.env.lake = false;
     this.world.reset(ERAS[0]);
     this.world.runTime = 120;
     this.world.cx = PLAYER_SPAWN.x; this.world.cy = PLAYER_SPAWN.y;
@@ -430,6 +441,24 @@ export class Game {
         this.events.push({ type: 'tongue', x1: p.x, y1: p.y, x2: p.x + Math.cos(p.angle) * reach * 0.7, y2: p.y + Math.sin(p.angle) * reach * 0.7 });
         p.cooldowns.tongue = 0.6;
       }
+    } else if (id === 'roar') {
+      // hunters that are not too much bigger turn and run; small prey freezes where it stands
+      const lv = p.traits.roar || 1;
+      const R = p.r * (lv >= 2 ? 15 : 11), rout = p.r * (lv >= 2 ? 2 : 1.5);
+      let routed = 0;
+      for (const o of this.world.queryOrganisms(p.x, p.y, R, this.tmp)) {
+        if (o.dyingT >= 0 || o.sp.sessile) continue;
+        o.revealT = Math.max(o.revealT, 4);
+        if (o.sp.category === 'predator' || this.isThreat(o)) {
+          const wasHunting = o.targetIsPlayer;
+          o.target = null; o.targetIsPlayer = false; o.windupT = 0; o.lungeT = 0; o.huntT = 0;
+          if (o.r <= rout) { o.mode = 'flee'; o.fleeX = p.x; o.fleeY = p.y; o.fearT = 4; o.restT = 8; routed++; }
+          else { o.mode = 'wander'; o.restT = 2.5; if (wasHunting) this.hint('roarbig', 'Too big to frighten — it only hesitates. Use the moment to run', true); }
+        } else if (o.r < p.r * 0.9) {
+          o.stunT = Math.max(o.stunT, 1.8); o.vx *= 0.15; o.vy *= 0.15;
+        }
+      }
+      if (routed >= 3) this.milestone('rout');
     } else if (id === 'ink') {
       this.world.addCloud(p.x, p.y, p.r * 6, 0, 'ink');
       p.hiddenT = 2.8;
@@ -483,7 +512,9 @@ export class Game {
       const touching = d < reach + o.r * 0.9;
       if (!touching) continue;
       const verdict = this.canEat(o);
-      if (verdict === 'ok' && d < reach + o.r * 0.6) {
+      // food is eaten on contact. (The second test matters for big bodies: beyond a quarter of your size, prey
+      // used to be shoved ahead by the separation push before it could ever get close enough to swallow.)
+      if (verdict === 'ok' && (d < reach + o.r * 0.6 || d < (p.r + o.r) * 0.95)) {
         if (p.strikeT > 0) { p.strikeT = 0; this.events.push({ type: 'strikeHit', x: o.x, y: o.y, r: o.r, kill: true }); }
         this.consume(o);
         continue;
@@ -496,8 +527,7 @@ export class Game {
         o.mode = 'flee'; o.fleeX = p.x; o.fleeY = p.y; o.target = null; o.targetIsPlayer = false; o.restT = 4;
         p.vx *= -0.3; p.vy *= -0.3;
         this.events.push({ type: 'strikeHit', x: o.x, y: o.y, r: o.r, kill: o.hp <= 0 });
-        if (o.hp <= 0) { this.world.kill(o, false); if (o.sp.category === 'predator') this.milestone('first_predator'); if (o.sp.id === 'raptor') this.milestone('apex');
-    if (o.sp.id === 'titan') this.milestone('titan'); }
+        if (o.hp <= 0) { this.world.kill(o, false); if (o.sp.category === 'predator') this.milestone('first_predator'); this.trophy(o.sp.id); }
         continue;
       }
       // threat bites
@@ -595,9 +625,16 @@ export class Game {
     this.events.push({ type: 'eat', x: o.x, y: o.y, r: o.r, color: o.sp.look.glow, energy, dna, species: o.sp, toxic });
     this.milestone('first_meal');
     if (o.sp.category === 'predator') { this.run.predatorsEaten++; this.milestone('first_predator'); }
-    if (o.sp.id === 'raptor') this.milestone('apex');
-    if (o.sp.id === 'titan') this.milestone('titan');
+    this.trophy(o.sp.id);
     if (o.sp.category === 'rare') this.milestone('rare_feast');
+  }
+
+  /** Milestones for bringing down the great beasts of each age. */
+  private trophy(id: string) {
+    if (id === 'raptor') this.milestone('apex');
+    else if (id === 'titan') this.milestone('titan');
+    else if (id === 'tyrant') this.milestone('kingslayer');
+    else if (id === 'longneck') this.milestone('giantfall');
   }
 
   private takeBite(o: Organism) {
@@ -626,7 +663,7 @@ export class Game {
       o.stunT = 1.3; o.hurtT = 0.3;
       o.mode = 'flee'; o.fleeX = p.x; o.fleeY = p.y; o.target = null; o.targetIsPlayer = false; o.restT = 5;
       this.events.push({ type: 'reflect', x: (p.x + o.x) / 2, y: (p.y + o.y) / 2 });
-      if (o.hp <= 0) this.world.kill(o, false);
+      if (o.hp <= 0) { this.world.kill(o, false); this.trophy(o.sp.id); }
     }
     this.hint('!burst', 'Hit! Tap BURST to escape — it costs a little energy', true);
   }
@@ -794,7 +831,7 @@ export class Game {
     } else if (p.growthFrac >= 1 && p.eraIndex === MAX_PLAYABLE_ERA && !this.frontierShown) {
       this.frontierShown = true;
       this.milestone('frontier');
-      this.events.push({ type: 'hint', id: 'frontier', text: ERAS[MAX_PLAYABLE_ERA] ? `You have reached the edge of the known. Era ${ERAS[MAX_PLAYABLE_ERA].numeral} awaits in a future evolution of PRIMORDIA.` : 'You have grown into one of the giants of the land. The age of the dinosaurs is still to come.' });
+      this.events.push({ type: 'hint', id: 'frontier', text: ERAS[MAX_PLAYABLE_ERA] ? `You have reached the edge of the known. Era ${ERAS[MAX_PLAYABLE_ERA].numeral} awaits in a future evolution of PRIMORDIA.` : 'You stand among the largest animals ever to walk the Earth. Far above, a new light is growing in the sky.' });
     }
   }
 
@@ -903,7 +940,8 @@ export class Game {
     }
     // Era VI: the sea gains a shoreline and dry land; Era VII: the continent grows
     this.env.land = p.eraIndex >= 6;
-    this.env.inland = p.eraIndex >= 7 ? INLAND_VII : 0;
+    this.env.inland = inlandFor(p.eraIndex);
+    this.env.lake = p.eraIndex >= 8;
     if (this.env.land && p.eraIndex < 7) {
       let guard = 0;
       while (this.env.isLand(p.x, p.y) && guard++ < 200) p.y += p.r;

@@ -27,7 +27,7 @@ const CATEGORY_LABEL: Record<string, string> = { harmless: 'Harmless', prey: 'Pr
 const ARCH_ORDER: Archetype[] = ['predator', 'defender', 'opportunist', 'phototroph'];
 const ARCH_SHORT: Record<Archetype, string> = { predator: 'Predator', defender: 'Defender', opportunist: 'Forager', phototroph: 'Phototroph' };
 /** micrometres per world unit at each era (bodies are measured in world units) */
-const UM_PER_UNIT = [0.25, 0.6, 3, 40, 400, 1500, 2500];
+const UM_PER_UNIT = [0.25, 0.6, 3, 40, 400, 1500, 2500, 4500];
 
 function fmtLength(um: number) {
   if (um < 1000) return `${um} µm`;
@@ -62,6 +62,7 @@ export class UI {
   private hpFill = $('hp-fill');
   private growthFill = $('growth-fill');
   private breathBar = $('breath-bar');
+  private onLand = false;
   private breathFill = $('breath-fill');
   private growthLabel = $('growth-label');
   private dnaCount = $('dna-count');
@@ -151,7 +152,8 @@ export class UI {
     const hp = Math.round((p.hp / p.maxHp) * 200) / 2;
     if (hp !== L.hp) { L.hp = hp; this.hpFill.style.transform = `scaleX(${Math.max(0, hp) / 100})`; this.hpFill.parentElement!.classList.toggle('low', hp < 30); }
     const showBreath = g.env.land;
-    if (this.breathBar.hidden === showBreath) this.breathBar.hidden = !showBreath;
+    if (p.onLand !== this.onLand) { this.onLand = p.onLand; this.hud.classList.toggle('on-land', p.onLand); }
+    if (this.breathBar.hidden === showBreath) { this.breathBar.hidden = !showBreath; this.hud.classList.toggle('has-breath', showBreath); }
     if (showBreath) {
       this.breathFill.style.transform = `scaleX(${Math.max(0, p.breath)})`;
       this.breathBar.classList.toggle('low', p.breath < 0.35);
@@ -166,7 +168,7 @@ export class UI {
         this.growthLabel.textContent = gf >= 100 ? (need > 0 ? `Fully grown · ${need} more mutation${need > 1 ? 's' : ''} to leap` : `Ready for Era ${next.numeral}`) : `Grow ${Math.floor(gf)}% → Era ${next.numeral} · ${next.name}`;
         this.growthFill.parentElement!.classList.toggle('full', gf >= 100);
       } else {
-        this.growthLabel.textContent = gf >= 100 ? 'Cambrian frontier reached' : 'Growth → Frontier';
+        this.growthLabel.textContent = gf >= 100 ? 'Fully grown · the frontier of the known' : `Grow ${Math.floor(gf)}% → full size`;
       }
     }
     // mutations toward the next leap, as pips beside the growth bar
@@ -233,9 +235,11 @@ export class UI {
       const info = ABILITY_INFO[id];
       const b = h('button', `act ability a-${id}`, `<span class="ic">${icon(id) || info.icon}</span><span class="lb">${info.name}</span>`) as HTMLButtonElement;
       // arrange in two arcs around the Burst button (centre 42px from the corner)
+      // (inner arc holds three; the outer arc spreads however many are left, up to five)
       const ring = i < 3 ? 0 : 1;
       const R = ring === 0 ? 96 : 160;
-      const deg = ring === 0 ? [8, 50, 92][i] : [16, 42, 68][i - 3];
+      const outer = Math.max(1, ids.length - 3);
+      const deg = ring === 0 ? [8, 50, 92][i] : outer <= 3 ? [16, 42, 68][i - 3] : 4 + (i - 3) * (88 / (outer - 1));
       const a = (deg * Math.PI) / 180;
       b.style.right = `${42 + Math.cos(a) * R - 29}px`;
       b.style.bottom = `${42 + Math.sin(a) * R - 29}px`;
@@ -387,7 +391,7 @@ export class UI {
           <div class="seg" id="st-ctrl"><button data-v="joystick" class="${s.controls === 'joystick' ? 'on' : ''}">Joystick</button><button data-v="drag" class="${s.controls === 'drag' ? 'on' : ''}">Follow</button></div></div>
         <div class="setting"><div><b>Vibration</b><small>A short buzz when you are bitten, leap or die (on supported phones)</small></div><button class="toggle ${s.haptics ? 'on' : ''}" id="st-haptics" aria-label="Vibration"><i></i></button></div>
         <div class="setting"><div><b>Gentle Tides</b><small>An easier sea: 40% less damage and 20% slower hunger. Discoveries count the same.</small></div><button class="toggle ${s.assist ? 'on' : ''}" id="st-assist" aria-label="Gentle Tides"><i></i></button></div>
-        <div class="setting"><div><b>Keyboard</b><small>WASD / arrows to swim · Space to burst · Q E R F T G abilities · V evolve · Esc pause</small></div></div>
+        <div class="setting"><div><b>Keyboard</b><small>WASD / arrows to swim · Space to burst · Q E R F T G C X abilities · V evolve · Esc pause</small></div></div>
         <div class="setting danger"><div><b>Erase discoveries</b><small>Clears the Codex and records</small></div><button class="btn small ghost" id="st-reset">Erase</button></div>
         <button class="btn primary" id="st-back">Done</button>
       </div>`;

@@ -1,5 +1,5 @@
 /** Data description of how an organism is drawn. Shared by NPC species and the player. */
-export type BodyKind = 'cell' | 'rod' | 'spiral' | 'diatom' | 'colony' | 'polyp' | 'jelly' | 'worm' | 'swimmer' | 'frond' | 'nautilus';
+export type BodyKind = 'cell' | 'rod' | 'spiral' | 'diatom' | 'colony' | 'polyp' | 'jelly' | 'worm' | 'swimmer' | 'frond' | 'nautilus' | 'plant';
 
 export interface Look {
   body: BodyKind;
@@ -73,6 +73,33 @@ export interface Look {
   serrated?: boolean;
   /** frill of skin around the neck */
   frill?: boolean;
+  /** ── dinosaur body plan (Era VIII) ── */
+  /** walks on its hind legs; the forelimbs become small arms */
+  biped?: boolean;
+  /** feathered coat (1: down along the body, 2: display plumes and a tail fan) */
+  feathers?: number;
+  /** upright bony plates along the spine (size) */
+  backPlates?: number;
+  /** bony knob at the end of the tail */
+  tailClub?: boolean;
+  /** spikes at the end of the tail */
+  tailSpikes?: boolean;
+  /** armour of bony studs set in the skin */
+  osteoderms?: boolean;
+  /** a head set off from the body by a neck (0..1: how long the neck is) */
+  neck?: number;
+  /** head width as a share of the body's (with `neck`) */
+  head?: number;
+  /** legs carried upright under the body rather than sprawled to the sides */
+  erect?: boolean;
+  /** hollow crest sweeping back from the skull */
+  crest?: boolean;
+  /** enlarged killing claw on each foot */
+  sickle?: boolean;
+  /** paddle-shaped flippers instead of ray fins */
+  paddles?: boolean;
+  /** land plant, seen from above */
+  plant?: 'fern' | 'cycad' | 'treefern';
 }
 
 export const baseLook = (o: Partial<Look>): Look => ({
